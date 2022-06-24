@@ -1,0 +1,2238 @@
+##########
+## Note ##
+##########
+
+# 20211020
+# 修改 code 适应10XBC数据
+# 修改 calculate_LRTG_allscore 函数：
+## 1. 当length(sender)!=1时,LRTG_score计算参考sender=NULL
+## 2. 多个sender细胞对receiver细胞的影响
+
+# 20211027
+# 修改 calculate_LRTG_allscore函数：
+## 1. 当!is.null(Sender)时，根据Sender和Receiver对mulNetList取子集
+## 2. 当!is.null(Sender) & length(Sender)!=1时，原为根据Sender得到TME，计算TME->Receiver的LRTGscore。
+##    修改为分别计算Sender->Receiver的LRTGscore，最终返回列表。
+
+# 20211028
+# 增加 EdgeBundling Plot 相关函数：prepareEdgeBundlingPlotData + drawEdgeBundlingPlot
+
+# 20211029
+# 增加 Alluvium Plot 相关函数：prepareAlluviumPlotData + drawAlluviumPlot
+# 修改 get_downstream_MLnet 函数：
+## 1. 增加network size检查，避免因下游TG太多导致可视化效果不佳
+## 2. 函数名字改为prepareMLnetworkPlotData
+# 修改 DrawMLnet 函数：
+## 1. 函数名字改为drawMLnetworkPlot
+## 2. drawMLnetworkPlot_V2：优化网络节点坐标计算过程
+## 3. drawMLnetworkPlot_V3：利用ggraph包可视化
+
+# 20211030
+# 修改 drawMLnetworkPlot 函数
+## 1. drawMLnetworkPlot_V3：优化注释生成
+## 2. drawMLnetworkPlot_V3: 增加网络重复节点的检查(TG与Lig,Rec,TF之间的重复节点) ！！！！！！！
+
+# 20211031
+# 修改 drawEdgeBundlingPlot 函数：
+## 1. drawEdgeBundlingPlot_V2优化df_node生成：通过去除receptor的信息，删除冗余sender节点(eg. COL4A2_SDC1_Endothelial -> COL4A2_Endothelial)
+## 2. drawEdgeBundlingPlot_V2优化节点标签的位置，角度计算
+# 修改 drawEdgeBundlingPlot 函数：
+## 1. 修改图例位置，组合，方向
+## 2. 修改节点标签大小,图例
+## 3. 保存图片的大小
+
+# 20211103
+# 修改 calculate_LRTG_score 函数：
+## 1.删除LRpari数量过滤
+## 2.增加判断，当上游只有一个LRpair时的操作
+## 3.删除返回结果里的distMat
+## 4.保存修改为calculate_LRTG_score_V2 + calculate_LRTG_allscore_V2
+
+# 新增 calculate_LRTG_score_V3 函数：
+## 1.同_V2
+## 2.距离算法为expo
+
+# 新增 calculate_LRTG_score_V4 函数：
+## 1.同_V2
+## 2.距离算法为constant
+
+# 20211104
+# 修改 prepareMLnetworkPlotData 函数
+## 1.输入增加LRTG_pim,根据LRTG_pim对LR~TG进行筛选（sum(im)-top10），中间的TF不筛选
+## 2.保存修改为prepareMLnetworkPlotData_V2
+# 优化 drawMLnetworkPlot 函数
+## 1.优化修改坐标计算bug
+## 2.保存修改为drawMLnetworkPlot_V4
+
+# 20211107
+# 修改 prepareMLnetworkPlotData 函数
+## 1.根据LRTG_pim对TG进行筛选（sum(im)-top10），中间的TF不筛选
+## 2.保存修改为prepareMLnetworkPlotData_V3
+
+################
+## runscMLnet ##
+################
+
+# main function
+mainfunc <- function(LigClu, Rebclu, workdir)
+{
+  
+  source_abundant <- Ligs_up_list[[LigClu]]
+  cat("source_background:",length(source_abundant),"\n")
+  target_abundant <- Recs_expr_list[[Rebclu]]
+  cat("target_background:",length(target_abundant),"\n")
+  tryCatch({
+    LigRecTab <- getLigRec(LigRec.DB, source_abundant, target_abundant)
+  }, error = function(e){
+    cat(conditionMessage(e),"\n")
+  })
+  tag1 = exists("LigRecTab")
+  if(!tag1) LigRecTab = data.frame()
+  
+  target_gene <- rownames(GCMat)[rowMeans(GCMat)>0]
+  cat("target_background:",length(target_gene),"\n")
+  target_icg <- ICGs_list[[Rebclu]]
+  if(LigClu %in% names(target_icg)){
+    target_icg <- target_icg[[LigClu]]
+  }
+  cat("target_icg:",length(target_icg),"\n")
+  tryCatch({
+    TFTGTab <- getTFTG(TFTG.DB, target_icg, target_gene)
+  },error = function(e){
+    cat(conditionMessage(e),"\n")
+  })
+  tag2 = exists("TFTGTab")
+  if(!tag2) TFTGTab = data.frame()
+  
+  if(tag1 & tag2){
+    Rec.list <- getNodeList(LigRecTab, "target")
+    TF.list <- getNodeList(TFTGTab, "source")
+    target.tfs <- TF.list
+    tryCatch({
+      RecTFTab <- getRecTF(RecTF.DB, Rec.list, TF.list)
+    },error=function(e){
+      cat(conditionMessage(e),"\n")
+    })
+  }
+  tag3 = exists("RecTFTab")
+  if(!tag3) RecTFTab = data.frame()
+  
+  if(tag3 & tag1){
+    Receptors_in_Tab <- getNodeList(RecTFTab, "source")
+    LigRecTab_new <- LigRecTab[LigRecTab[,2] %in% Receptors_in_Tab,]
+  }else{
+    LigRecTab_new <- data.frame()
+  }
+  cat("LR pairs:",nrow(LigRecTab_new),"\n")
+  
+  if(tag3 & tag2){
+    TFs_in_Tab <- getNodeList(RecTFTab, "target")
+    TFTGTab_new <- TFTGTab[TFTGTab[,1] %in% TFs_in_Tab,]
+  }else{
+    TFTGTab_new = data.frame()
+  }
+  cat("TFTG pairs:",nrow(TFTGTab_new),"\n")
+  
+  result <- list("LigRec" = LigRecTab_new,
+                 "RecTF" = RecTFTab,
+                 "TFTar" = TFTGTab_new)
+  
+  foldername = paste(LigClu,RecClu,sep = "_")
+  workdir = paste(workdir,foldername,sep = "/")
+  if(!dir.exists(workdir)) dir.create(workdir,recursive = TRUE)
+  saveRDS(result, file = paste0(workdir,"/scMLnet.rds"))
+  
+  return(result)
+}
+
+# get barcode list of cluster of interset and other cluster
+getBarList <- function(Aclu, GCMat, BarCluTable)
+{
+  AcluBar <- BarCluTable %>% dplyr::filter(.,Cluster == Aclu) %>% 
+    dplyr::select(.,Barcode) %>% unlist() %>% as.character()
+  names(AcluBar) <- NULL
+  
+  AllBar <- BarCluTable %>% dplyr::select(Barcode) %>% unlist() %>% as.character()
+  OtherBar <- setdiff(AllBar,AcluBar)
+  
+  result <- list(AcluBar,OtherBar)
+  return(result)
+}
+
+# perform fisher test to get activate TFs or pathways
+fisher_test <- function(subset1,subset2,backgrond)
+{
+  a=length(intersect(subset1,subset2))
+  b=length(subset1)-a
+  c=length(subset2)-a
+  d=length(backgrond)-a-b-c
+  matrix=matrix(c(a,c,b,d),nrow=2)
+  fisher.test(matrix,alternative="greater")$p.value
+}
+
+# get nodes in prior Database
+getNodeList <- function(Database, Nodetype)
+{
+  
+  NodeList <- Database[,Nodetype] %>% unlist() %>% unique()
+  
+  return(NodeList)
+  
+}
+
+getLigRec <- function(LigRec.DB, source_up, target_up)
+{
+  
+  require(dplyr)
+  
+  if (!is.data.frame(LigRec.DB)) 
+    stop("LigRec.DB must be a data frame or tibble object")
+  if (!"source" %in% colnames(LigRec.DB)) 
+    stop("LigRec.DB must contain a column named 'source'")
+  if (!"target" %in% colnames(LigRec.DB)) 
+    stop("LigRec.DB must contain a column named 'target'")
+  
+  # get ligand and receptor list
+  LigGene <- LigRec.DB %>% dplyr::select(source) %>% unlist() %>% unique()
+  RecGene <- LigRec.DB %>% dplyr::select(target) %>% unlist() %>% unique()
+  TotLigRec <- paste(LigRec.DB$source, LigRec.DB$target, sep = "_") %>% unique()
+  
+  # get high expressed ligand and receptor
+  LigHighGene <- intersect(LigGene,source_up)
+  RecHighGene <- intersect(RecGene,target_up)
+  
+  # get activated LR pairs
+  LRList <- paste(rep(LigHighGene,each = length(RecHighGene)),RecHighGene,sep = "_")
+  LRList <- intersect(LRList,TotLigRec)
+  
+  # check result
+  if(length(LRList)==0)
+    stop("Error: No significant LigRec pairs")
+  
+  # get result
+  LRTable <- LRList %>% strsplit(.,split = "_") %>% do.call(rbind, .) %>% as.data.frame()
+  colnames(LRTable) <- c("source","target")
+  
+  cat(paste0("get ",length(LRList)," activated LR pairs\n"))
+  return(LRTable)
+  
+}
+
+getTFTG <- function(TFTG.DB, target.degs, target.genes)
+{
+  
+  if (!is.data.frame(TFTG.DB))
+    stop("TFTG.DB must be a data frame or tibble object")
+  if (!"source" %in% colnames(TFTG.DB))
+    stop("TFTG.DB must contain a column named 'source'")
+  if (!"target" %in% colnames(TFTG.DB))
+    stop("TFTG.DB must contain a column named 'target'")
+  
+  # get TF list
+  TF.list <- TFTG.DB %>% dplyr::select(source) %>% unlist() %>% unique()
+  
+  # get Target list
+  TG.list <- lapply(TF.list, function(x){
+    TFTG.DB %>% filter(source == x)  %>% dplyr::select(target) %>% unlist() %>% unique() %>% intersect(.,target.genes)
+  })
+  names(TG.list) <- TF.list
+  
+  # get target differently expressed genes
+  DEGs <- target.degs
+  
+  # perform fisher test
+  TFs <- lapply(TG.list, function(x){fisher_test(subset1 = x, subset2 = DEGs, backgrond = target.genes)})
+  TFs <- unlist(TFs)
+  TFs <- names(TFs)[TFs <= 0.05]
+  TFs <- TFs[TFs %in% target.genes]
+  
+  # get activated LR pairs
+  TFTGList <- TG.list[TFs]
+  TFTGList <- lapply(TFTGList, function(x){intersect(x, DEGs)})
+  TFTGList <- paste(rep(TFs, times = lengths(TFTGList)), unlist(TFTGList), sep = "_")
+  
+  # check result
+  if(length(TFTGList)==0)
+    stop("Error: No significant TFTG pairs")
+  
+  # get result
+  TFTGTable <- TFTGList %>% strsplit(.,split = "_") %>% do.call(rbind, .) %>% as.data.frame()
+  colnames(TFTGTable) <- c("source","target")
+  
+  cat(paste0("get ",length(TFTGList)," activated TFTG pairs\n"))
+  return(TFTGTable)
+  
+}
+
+getRecTF <- function(RecTF.DB, Rec.list, TF.list)
+{
+  
+  if (!is.data.frame(RecTF.DB))
+    stop("RecTF.DB must be a data frame or tibble object")
+  if (!"source" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'source'")
+  if (!"target" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'target'")
+  
+  # make sure Rec.list in RecTF.DB
+  Rec.list <- Rec.list[Rec.list %in% RecTF.DB$source]
+  Rec.list <- as.vector(Rec.list)
+  
+  # make sure TF.list in RecTF.DB
+  TF.list <- TF.list[TF.list %in% RecTF.DB$target]
+  TF.list <- as.vector(TF.list)
+  
+  # get TF activated by Receptors
+  TFofRec <- lapply(Rec.list, function(x){
+    RecTF.DB %>% dplyr::filter(source == x)  %>% dplyr::select(target) %>% unlist() %>% unique()
+  })
+  names(TFofRec) <- Rec.list
+  
+  # get all TF
+  TFofALL <- RecTF.DB %>% dplyr::select(target) %>% unlist() %>% unique()
+  
+  # perform fisher test
+  Recs <- lapply(TFofRec, function(x){
+    fisher_test(subset1 = x, subset2 = TF.list, backgrond = TFofALL)
+  })
+  Recs <- unlist(Recs)
+  Recs <- names(Recs)[Recs <= 0.05]
+  # Recs <- Recs[Recs %in% target_gene]
+  
+  # get activated RecTF pairs
+  RecTFList <- TFofRec[Recs]
+  RecTFList <- lapply(RecTFList, function(x){intersect(x, TF.list)})
+  RecTFList <- paste(rep(Recs, times = lengths(RecTFList)), unlist(RecTFList), sep = "_")
+  
+  # check result
+  if(length(RecTFList)==0)
+    stop("Error: No significant RecTF pairs")
+  
+  # get result
+  RecTFTable <- RecTFList %>% strsplit(.,split = "_") %>% do.call(rbind, .) %>% as.data.frame()
+  colnames(RecTFTable) <- c("source","target")
+  
+  cat(paste0("get ",length(RecTFList)," activated RecTF pairs\n"))
+  return(RecTFTable)
+  # return(Recs)
+}
+
+################
+## getLRscore ##
+################
+
+## 对表达谱进行填补
+run_Imputation <- function(exprMat, use.seed = TRUE, seed = 2021)
+{
+  
+  expr.Impute <- CreateSeuratObject(exprMat,verbose=F)
+  if(use.seed) set.seed(seed)
+  message('Using imputation method ALRA wrapped in Seurat')
+  expr.Impute <- RunALRA(expr.Impute)
+  exprMat.Impute <- expr.Impute@assays$alra@data
+  
+  return(exprMat.Impute)
+  
+}
+
+## 获取指定sender和Receiver的LRscore和TG表达量
+
+calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
+                                 LRpairs, TGs, Receiver, Sender = NULL, 
+                                 far.ct = 0.75, close.ct = 0.25, 
+                                 downsample = FALSE)
+{
+  
+  # 获取Sender和Receiver
+  receBars = annoMat %>% dplyr::filter(Cluster == Receiver) %>% 
+    dplyr::select(Barcode) %>% unlist() %>% as.character()
+  if(is.character(Sender)){
+    sendBars = annoMat %>% dplyr::filter(Cluster == Sender) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }else{
+    sendBars = annoMat %>% dplyr::filter(Cluster != Receiver) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }
+  
+  # 获取Lig和Rec列表
+  Receptors = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,2]})
+  Ligands = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,1]})
+  
+  # get exprMat of Ligand
+  LigMats = lapply(TGs, function(tg){
+    # print(tg)
+    ligands = Ligands[[tg]]
+    if(length(ligands)==1){
+      lig_count = exprMat[ligands, sendBars]
+      lig_count = matrix(lig_count,nrow = 1)
+    }else{
+      lig_count = exprMat[ligands, sendBars] %>% as.matrix()
+    }
+    rownames(lig_count) = LRpairs[[tg]]
+    colnames(lig_count) = sendBars
+    lig_count
+  })
+  names(LigMats) = TGs
+  
+  # get exprMat of Receptor
+  RecMats = lapply(TGs, function(tg){
+    receptors = Receptors[[tg]]
+    if(length(receptors)==1){
+      rec_count = exprMat[receptors, receBars]
+      rec_count = matrix(rec_count,nrow = 1)
+    }else{
+      rec_count = exprMat[receptors, receBars] %>% as.matrix()
+    }
+    rownames(rec_count) = LRpairs[[tg]]
+    colnames(rec_count) = receBars
+    rec_count
+  })
+  names(RecMats) = TGs
+  
+  # 获取距离矩阵
+  distMat = distMat[sendBars, receBars]
+  
+  # 获取细胞配对
+  if(!is.null(group)){
+    cpMat <- get_cell_pairs(group, distMat, far.ct, close.ct)
+  }else{
+    cpMat <- NULL
+  }
+  distMat = 1/distMat
+  
+  # 获取LR打分矩阵
+  t1 <- Sys.time(); message(paste0('Start at: ',as.character(t1)))
+  LRs_score = lapply(TGs, function(tg){
+    # 对每个TG计算LRscore
+    # print(tg)
+    LigMat = LigMats[[tg]]
+    RecMat = RecMats[[tg]]
+    lr = LRpairs[[tg]] 
+    
+    if(is.null(cpMat)){
+      
+      LR_score = RecMat*(LigMat%*%distMat)
+      LR_score = t(LR_score)
+      colnames(LR_score) = lr
+      rownames(LR_score) = receBars
+      
+    }else{
+      
+      LR_score = lapply(unique(cpMat$Receiver), function(j){
+        # j = unique(cpMat$Receiver)[1]
+        is <- cpMat$Sender[cpMat$Receiver == j] %>% unique()
+        if(length(is)==1){
+          RecMat[,j]*(LigMat[,is]*distMat[is,j])
+        }else{
+          RecMat[,j]*(LigMat[,is]%*%distMat[is,j])
+        }
+      }) %>% do.call('cbind',.) %>% t()
+      colnames(LR_score) = lr
+      rownames(LR_score) = unique(cpMat$Receiver)
+      
+    }
+    LR_score
+    
+  })
+  names(LRs_score) = TGs
+  t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
+  t2-t1 # 17 sec
+  
+  # 获取Target表达谱
+  if(is.null(cpMat)){
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, receBars] })
+    
+  }else{
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, unique(cpMat$Receiver)] })
+    
+  }
+  names(TGs_expr) = TGs
+  
+  # downsample
+  if(length(receBars)>500){
+    if(isTRUE(downsample)){
+      set.seed(2021)
+      
+      if(is.null(cpMat)){
+        keep_cell = sample(receBars, size = 500, replace = F)
+      }else{
+        keep_cell = sample(unique(cpMat$Receiver), size = 500, replace = F)
+      }
+      
+      LRs_score = lapply(LRs_score, function(LR_score){ LR_score = LR_score[keep_cell,] })
+      TGs_expr = lapply(TGs_expr, function(TG_count){ TG_count = TG_count[keep_cell] })
+    }
+  }
+  
+  # LR打分矩阵~靶基因表达量
+  LRTG_score = list(LRs_score = LRs_score, TGs_expr = TGs_expr)
+  
+  return(LRTG_score)
+  
+}
+
+calculate_LRTG_score_V3 <- function(exprMat, distMat, annoMat, group = NULL,
+                                    LRpairs, TGs, Receiver, Sender = NULL, 
+                                    far.ct = 0.75, close.ct = 0.25, 
+                                    downsample = FALSE)
+{
+  
+  # get Sender and Receiver
+  receBars = annoMat %>% dplyr::filter(Cluster == Receiver) %>% 
+    dplyr::select(Barcode) %>% unlist() %>% as.character()
+  if(is.character(Sender)){
+    sendBars = annoMat %>% dplyr::filter(Cluster == Sender) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }else{
+    sendBars = annoMat %>% dplyr::filter(Cluster != Receiver) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }
+  
+  # get Ligand and Receptor
+  Receptors = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,2]})
+  Ligands = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,1]})
+  
+  # get exprMat of Ligand
+  LigMats = lapply(TGs, function(tg){
+    # print(tg)
+    ligands = Ligands[[tg]]
+    if(length(ligands)==1){
+      lig_count = exprMat[ligands, sendBars]
+      lig_count = matrix(lig_count,nrow = 1)
+    }else{
+      lig_count = exprMat[ligands, sendBars] %>% as.matrix()
+    }
+    rownames(lig_count) = LRpairs[[tg]]
+    colnames(lig_count) = sendBars
+    lig_count
+  })
+  names(LigMats) = TGs
+  
+  # get exprMat of Receptor
+  RecMats = lapply(TGs, function(tg){
+    receptors = Receptors[[tg]]
+    if(length(receptors)==1){
+      rec_count = exprMat[receptors, receBars]
+      rec_count = matrix(rec_count,nrow = 1)
+    }else{
+      rec_count = exprMat[receptors, receBars] %>% as.matrix()
+    }
+    rownames(rec_count) = LRpairs[[tg]]
+    colnames(rec_count) = receBars
+    rec_count
+  })
+  names(RecMats) = TGs
+  
+  # get and transform distMat
+  l.scale = 100
+  distMat = distMat[sendBars, receBars]
+  
+  # get cell pair
+  if(!is.null(group)){
+    cpMat <- get_cell_pairs(group, distMat, far.ct, close.ct)
+  }else{
+    cpMat <- NULL
+  }
+  distMat = exp(-distMat^2/(2*l.scale^2))
+  
+  # get LRscore
+  t1 <- Sys.time(); message(paste0('Start at: ',as.character(t1)))
+  LRs_score = lapply(TGs, function(tg){
+    # print(tg)
+    LigMat = LigMats[[tg]]
+    RecMat = RecMats[[tg]]
+    lr = LRpairs[[tg]] 
+    
+    if(is.null(cpMat)){
+      
+      LR_score = RecMat*(LigMat%*%distMat)
+      LR_score = t(LR_score)
+      colnames(LR_score) = lr
+      rownames(LR_score) = receBars
+      
+    }else{
+      
+      LR_score = lapply(unique(cpMat$Receiver), function(j){
+        # j = 'GATATTTCCTACATGG.1'
+        is <- cpMat$Sender[cpMat$Receiver == j] %>% unique()
+        RecMat[,j]*(LigMat[,is]%*%distMat[is,j])
+      }) %>% do.call('rbind',.) 
+      colnames(LR_score) = lr
+      rownames(LR_score) = unique(cpMat$Receiver)
+      
+    }
+    LR_score
+    
+  })
+  names(LRs_score) = TGs
+  t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
+  t2-t1 # 17 sec
+  
+  # get expression of each TG
+  if(is.null(cpMat)){
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, receBars] })
+    
+  }else{
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, unique(cpMat$Receiver)] })
+    
+  }
+  names(TGs_expr) = TGs
+  
+  # downsample
+  if(length(receBars)>500){
+    if(isTRUE(downsample)){
+      set.seed(2021)
+      
+      if(is.null(cpMat)){
+        keep_cell = sample(receBars, size = 500, replace = F)
+      }else{
+        keep_cell = sample(unique(cpMat$Receiver), size = 500, replace = F)
+      }
+      
+      LRs_score = lapply(LRs_score, function(LR_score){ LR_score = LR_score[keep_cell,] })
+      TGs_expr = lapply(TGs_expr, function(TG_count){ TG_count = TG_count[keep_cell] })
+    }
+  }
+  
+  LRTG_score = list(LRs_score = LRs_score, TGs_expr = TGs_expr)
+  
+  return(LRTG_score)
+  
+}
+
+calculate_LRTG_score_V4 <- function(exprMat, distMat, annoMat, group = NULL,
+                                    LRpairs, TGs, Receiver, Sender = NULL, 
+                                    far.ct = 0.75, close.ct = 0.25, 
+                                    downsample = FALSE)
+{
+  
+  # get Sender and Receiver
+  receBars = annoMat %>% dplyr::filter(Cluster == Receiver) %>% 
+    dplyr::select(Barcode) %>% unlist() %>% as.character()
+  if(is.character(Sender)){
+    sendBars = annoMat %>% dplyr::filter(Cluster == Sender) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }else{
+    sendBars = annoMat %>% dplyr::filter(Cluster != Receiver) %>% 
+      dplyr::select(Barcode) %>% unlist() %>% as.character()
+  }
+  
+  # get Ligand and Receptor
+  Receptors = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,2]})
+  Ligands = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,1]})
+  
+  # get exprMat of Ligand
+  LigMats = lapply(TGs, function(tg){
+    # print(tg)
+    ligands = Ligands[[tg]]
+    if(length(ligands)==1){
+      lig_count = exprMat[ligands, sendBars]
+      lig_count = matrix(lig_count,nrow = 1)
+    }else{
+      lig_count = exprMat[ligands, sendBars] %>% as.matrix()
+    }
+    rownames(lig_count) = LRpairs[[tg]]
+    colnames(lig_count) = sendBars
+    lig_count
+  })
+  names(LigMats) = TGs
+  
+  # get exprMat of Receptor
+  RecMats = lapply(TGs, function(tg){
+    receptors = Receptors[[tg]]
+    if(length(receptors)==1){
+      rec_count = exprMat[receptors, receBars]
+      rec_count = matrix(rec_count,nrow = 1)
+    }else{
+      rec_count = exprMat[receptors, receBars] %>% as.matrix()
+    }
+    rownames(rec_count) = LRpairs[[tg]]
+    colnames(rec_count) = receBars
+    rec_count
+  })
+  names(RecMats) = TGs
+  
+  # get and transform distMat
+  distMat = distMat[sendBars, receBars]
+  
+  # get cell pair
+  if(!is.null(group)){
+    cpMat <- get_cell_pairs(group, distMat, far.ct, close.ct)
+  }else{
+    cpMat <- NULL
+  }
+  distMat[sendBars, receBars] = 1
+  
+  # get LRscore
+  t1 <- Sys.time(); message(paste0('Start at: ',as.character(t1)))
+  LRs_score = lapply(TGs, function(tg){
+    print(tg)
+    LigMat = LigMats[[tg]]
+    RecMat = RecMats[[tg]]
+    lr = LRpairs[[tg]] 
+    
+    if(is.null(cpMat)){
+      
+      LR_score = RecMat*(LigMat%*%distMat)/length(sendBars)
+      LR_score = t(LR_score)
+      colnames(LR_score) = lr
+      rownames(LR_score) = receBars
+      
+    }else{
+      
+      LR_score = lapply(unique(cpMat$Receiver), function(j){
+        # j = 'GATCCCTTTATACTGC.1'
+        is <- cpMat$Sender[cpMat$Receiver == j] %>% unique()
+        RecMat[,j]*(LigMat[,is]%*%distMat[is,])/length(is)
+      }) %>% do.call('rbind',.) 
+      colnames(LR_score) = lr
+      rownames(LR_score) = unique(cpMat$Receiver)
+      
+    }
+    LR_score
+    
+  })
+  names(LRs_score) = TGs
+  t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
+  t2-t1 # 17 sec
+  
+  # get expression of each TG
+  if(is.null(cpMat)){
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, receBars] })
+    
+  }else{
+    
+    TGs_expr = lapply(TGs, function(tg){ exprMat[tg, unique(cpMat$Receiver)] })
+    
+  }
+  names(TGs_expr) = TGs
+  
+  # downsample
+  if(length(receBars)>500){
+    if(isTRUE(downsample)){
+      set.seed(2021)
+      
+      if(is.null(cpMat)){
+        keep_cell = sample(receBars, size = 500, replace = F)
+      }else{
+        keep_cell = sample(unique(cpMat$Receiver), size = 500, replace = F)
+      }
+      
+      LRs_score = lapply(LRs_score, function(LR_score){ LR_score = LR_score[keep_cell,] })
+      TGs_expr = lapply(TGs_expr, function(TG_count){ TG_count = TG_count[keep_cell] })
+    }
+  }
+  
+  LRTG_score = list(LRs_score = LRs_score, TGs_expr = TGs_expr)
+  
+  return(LRTG_score)
+  
+}
+
+
+## 获取微环境细胞间的LRscore和TG表达量
+
+calculate_LRTG_allscore_V2 <- function(exprMat, distMat, annoMat, group = NULL,
+                                    mulNetList, Receiver, Sender = NULL, 
+                                    far.ct = 0.75, close.ct = 0.25,
+                                    downsample = FALSE){
+  
+  if(is.null(Sender)){
+    
+    mulNetList = mulNetList[grep(paste0("_",Receiver),names(mulNetList))]
+    mulNet_tab = lapply(mulNetList, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    mulNet_tab = do.call("rbind", mulNet_tab)
+    
+    LRpairs = by(mulNet_tab, as.character(mulNet_tab$Target), function(x){paste(x$Ligand, x$Receptor, sep = "_")})
+    LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+    TGs = names(LRpairs)
+    
+    # cat("calculate the regulatory score of LR pairs from microenvironment")
+    cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
+    LRTG_allscore = calculate_LRTG_score_V2(exprMat, distMat, annoMat, group,
+                                         LRpairs, TGs, Receiver, Sender, 
+                                         far.ct, close.ct, downsample)
+    
+  }else if(length(Sender)==1){
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    mulNet = mulNetList[[cellpair]]
+    
+    TGs = mulNet %>% .[['TFTar']] %>% dplyr::select(target) %>% unlist() %>% as.character() %>% unique()
+    LRpairs = get_LRTG_link(mulNet, TGs)
+    
+    cat(paste0("calculate the regulatory score of LR pairs from ",Sender,' to ',Receiver))
+    LRTG_allscore = calculate_LRTG_score_V2(exprMat, distMat, annoMat, group,
+                                         LRpairs, TGs, Receiver, Sender, 
+                                         far.ct, close.ct, downsample)
+    
+  }else{
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    cellpair <- intersect(names(mulNetList),cellpair)
+    if(length(cellpair)==0){
+      LRTG_allscore = NA
+      return(LRTG_allscore)
+    }
+    
+    mulNetlist = mulNetList[cellpair]
+    mulNet_tab = lapply(mulNetlist, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    
+    LRpairs_TGs_list <- lapply(mulNet_tab, function(ml_tab){
+      
+      lrpairs = by(ml_tab, as.character(ml_tab$Target), function(x){
+        paste(x$Ligand, x$Receptor, sep = "_")
+      })
+      lrpairs = lapply(lrpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+      tgs = names(lrpairs)
+      
+      list(LRpairs = lrpairs, TGs = tgs)
+      
+    })
+    names(LRpairs_TGs_list) <- names(mulNet_tab)
+    
+    LRTG_allscore <- list()
+    for (cp in cellpair) {
+      
+      receiver <- gsub('.*_','',cp)
+      sender <- gsub('_.*','',cp)
+      
+      LRpairs <- LRpairs_TGs_list[[cp]]$LRpairs
+      TGs <- LRpairs_TGs_list[[cp]]$TGs
+      
+      cat(paste0("calculate the regulatory score of LR pairs from ",sender,' to ',receiver))
+      LRTG_allscore[[cp]] = calculate_LRTG_score_V2(exprMat, distMat, annoMat, group,
+                                                 LRpairs, TGs, receiver, sender, 
+                                                 far.ct, close.ct, downsample)
+      
+    }
+  }
+  
+  return(LRTG_allscore)
+}
+
+calculate_LRTG_allscore_V3 <- function(exprMat, distMat, annoMat, group = NULL,
+                                       mulNetList, Receiver, Sender = NULL, 
+                                       far.ct = 0.75, close.ct = 0.25,
+                                       downsample = FALSE){
+  
+  if(is.null(Sender)){
+    
+    mulNetList = mulNetList[grep(paste0("_",Receiver),names(mulNetList))]
+    mulNet_tab = lapply(mulNetList, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    mulNet_tab = do.call("rbind", mulNet_tab)
+    
+    LRpairs = by(mulNet_tab, as.character(mulNet_tab$Target), function(x){paste(x$Ligand, x$Receptor, sep = "_")})
+    LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+    TGs = names(LRpairs)
+    
+    # cat("calculate the regulatory score of LR pairs from microenvironment")
+    cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
+    LRTG_allscore = calculate_LRTG_score_V3(exprMat, distMat, annoMat, group,
+                                            LRpairs, TGs, Receiver, Sender, 
+                                            far.ct, close.ct, downsample)
+    
+  }else if(length(Sender)==1){
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    mulNet = mulNetList[[cellpair]]
+    
+    TGs = mulNet %>% .[['TFTar']] %>% dplyr::select(target) %>% unlist() %>% as.character() %>% unique()
+    LRpairs = get_LRTG_link(mulNet, TGs)
+    
+    cat(paste0("calculate the regulatory score of LR pairs from ",Sender,' to ',Receiver))
+    LRTG_allscore = calculate_LRTG_score_V3(exprMat, distMat, annoMat, group,
+                                            LRpairs, TGs, Receiver, Sender, 
+                                            far.ct, close.ct, downsample)
+    
+  }else{
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    cellpair <- intersect(names(mulNetList),cellpair)
+    if(length(cellpair)==0){
+      LRTG_allscore = NA
+      return(LRTG_allscore)
+    }
+    
+    mulNetlist = mulNetList[cellpair]
+    mulNet_tab = lapply(mulNetlist, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    
+    LRpairs_TGs_list <- lapply(mulNet_tab, function(ml_tab){
+      
+      lrpairs = by(ml_tab, as.character(ml_tab$Target), function(x){
+        paste(x$Ligand, x$Receptor, sep = "_")
+      })
+      lrpairs = lapply(lrpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+      tgs = names(lrpairs)
+      
+      list(LRpairs = lrpairs, TGs = tgs)
+      
+    })
+    names(LRpairs_TGs_list) <- names(mulNet_tab)
+    
+    LRTG_allscore <- list()
+    for (cp in cellpair) {
+      
+      receiver <- gsub('.*_','',cp)
+      sender <- gsub('_.*','',cp)
+      
+      LRpairs <- LRpairs_TGs_list[[cp]]$LRpairs
+      TGs <- LRpairs_TGs_list[[cp]]$TGs
+      
+      cat(paste0("calculate the regulatory score of LR pairs from ",sender,' to ',receiver))
+      LRTG_allscore[[cp]] = calculate_LRTG_score_V3(exprMat, distMat, annoMat, group,
+                                                    LRpairs, TGs, receiver, sender, 
+                                                    far.ct, close.ct, downsample)
+      
+    }
+  }
+  
+  return(LRTG_allscore)
+}
+
+calculate_LRTG_allscore_V4 <- function(exprMat, distMat, annoMat, group = NULL,
+                                       mulNetList, Receiver, Sender = NULL, 
+                                       far.ct = 0.75, close.ct = 0.25,
+                                       downsample = FALSE){
+  
+  if(is.null(Sender)){
+    
+    mulNetList = mulNetList[grep(paste0("_",Receiver),names(mulNetList))]
+    mulNet_tab = lapply(mulNetList, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    mulNet_tab = do.call("rbind", mulNet_tab)
+    
+    LRpairs = by(mulNet_tab, as.character(mulNet_tab$Target), function(x){paste(x$Ligand, x$Receptor, sep = "_")})
+    LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+    TGs = names(LRpairs)
+    
+    # cat("calculate the regulatory score of LR pairs from microenvironment")
+    cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
+    LRTG_allscore = calculate_LRTG_score_V4(exprMat, distMat, annoMat, group,
+                                            LRpairs, TGs, Receiver, Sender, 
+                                            far.ct, close.ct, downsample)
+    
+  }else if(length(Sender)==1){
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    mulNet = mulNetList[[cellpair]]
+    
+    TGs = mulNet %>% .[['TFTar']] %>% dplyr::select(target) %>% unlist() %>% as.character() %>% unique()
+    LRpairs = get_LRTG_link(mulNet, TGs)
+    
+    cat(paste0("calculate the regulatory score of LR pairs from ",Sender,' to ',Receiver))
+    LRTG_allscore = calculate_LRTG_score_V4(exprMat, distMat, annoMat, group,
+                                            LRpairs, TGs, Receiver, Sender, 
+                                            far.ct, close.ct, downsample)
+    
+  }else{
+    
+    cellpair = paste(Sender,Receiver,sep = "_")
+    cellpair <- intersect(names(mulNetList),cellpair)
+    if(length(cellpair)==0){
+      LRTG_allscore = NA
+      return(LRTG_allscore)
+    }
+    
+    mulNetlist = mulNetList[cellpair]
+    mulNet_tab = lapply(mulNetlist, function(mlnet){
+      
+      ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+      rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+      tftg = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+      
+      res = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+        merge(., tftg, by = 'TF') %>% 
+        dplyr::select(Ligand, Receptor, TF, Target) %>% 
+        arrange(Ligand, Receptor)
+      
+    })
+    
+    LRpairs_TGs_list <- lapply(mulNet_tab, function(ml_tab){
+      
+      lrpairs = by(ml_tab, as.character(ml_tab$Target), function(x){
+        paste(x$Ligand, x$Receptor, sep = "_")
+      })
+      lrpairs = lapply(lrpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
+      tgs = names(lrpairs)
+      
+      list(LRpairs = lrpairs, TGs = tgs)
+      
+    })
+    names(LRpairs_TGs_list) <- names(mulNet_tab)
+    
+    LRTG_allscore <- list()
+    for (cp in cellpair) {
+      
+      receiver <- gsub('.*_','',cp)
+      sender <- gsub('_.*','',cp)
+      
+      LRpairs <- LRpairs_TGs_list[[cp]]$LRpairs
+      TGs <- LRpairs_TGs_list[[cp]]$TGs
+      
+      cat(paste0("calculate the regulatory score of LR pairs from ",sender,' to ',receiver))
+      LRTG_allscore[[cp]] = calculate_LRTG_score_V4(exprMat, distMat, annoMat, group,
+                                                    LRpairs, TGs, receiver, sender, 
+                                                    far.ct, close.ct, downsample)
+      
+    }
+  }
+  
+  return(LRTG_allscore)
+}
+
+
+## 获取指定TG上游LRpair
+get_LRTG_link <- function(mulNet, TGs)
+{
+  
+  ligrec = data.frame(Ligand = mulNet$LigRec$source, Receptor = mulNet$LigRec$target) 
+  rectf = data.frame(Receptor = mulNet$RecTF$source, TF = mulNet$RecTF$target)
+  tftg = data.frame(TF = mulNet$TFTar$source, Target = mulNet$TFTar$target)
+  
+  mulNet_tab = ligrec %>% merge(., rectf, by = 'Receptor') %>% 
+    merge(., tftg, by = 'TF') %>% 
+    dplyr::select(Ligand, Receptor, TF, Target) %>% 
+    arrange(Ligand, Receptor) %>%
+    filter(Target %in% TGs)
+  
+  LRTG_link = by(mulNet_tab, as.character(mulNet_tab$Target), function(x){paste(x$Ligand, x$Receptor, sep = "_")})
+  LRTG_link = lapply(LRTG_link, function(lrtg){lrtg[!duplicated(lrtg)]})
+  LRTG_link = LRTG_link[TGs]
+  
+  return(LRTG_link)
+}
+
+## get_cell_pairs：获取与特定细胞类型的相近/相离的细胞配对
+get_cell_pairs <- function(group=NULL, distMat, far.ct = 0.75, close.ct = 0.25)
+{
+  
+  distMat_long <- reshape2::melt(distMat)
+  colnames(distMat_long) <- c('Sender','Receiver','Distance')
+  distMat_long$Sender <- as.character(distMat_long$Sender)
+  distMat_long$Receiver <- as.character(distMat_long$Receiver)
+  
+  if(is.null(group)){
+    respon_cellpair <- distMat_long[,1:2]
+    group = 'all'
+  }
+  if(group == 'close') 
+    respon_cellpair <- distMat_long[distMat_long$Distance <= quantile(distMat_long$Distance,close.ct),1:2]
+  if(group == 'far') 
+    respon_cellpair <- distMat_long[distMat_long$Distance >= quantile(distMat_long$Distance,far.ct),1:2]
+  
+  return(respon_cellpair)
+}
+
+## 求互信息
+getMI <- function(LRTG_score)
+{
+  
+  require(infotheo)
+  
+  # 获取df_keys
+  df_keys = data.frame(
+    LRpair = lapply(LRTG_score$LRs_score, function(df){colnames(df)}) %>% unlist(),
+    TG = lapply(1:length(LRTG_score$LRs_score), function(i){
+      rep(names(LRTG_score$LRs_score)[i],ncol(LRTG_score$LRs_score[[i]]))
+    }) %>% unlist()
+  )
+  
+  ## 计算相关性
+  t1 <- Sys.time()
+  df_mi <- lapply(1:nrow(df_keys), function(i){
+    
+    LRexpr = LRTG_score$LRs_score[[df_keys[i,'TG']]][,df_keys[i,'LRpair']]
+    TGexpr = LRTG_score$TGs_expr[[df_keys[i,'TG']]]
+    
+    dat <- data.frame(LRexpr,TGexpr)
+    dat <- discretize(dat)
+    mi <- mutinformation(dat)
+    mi[1,2]
+    
+  }) %>% unlist()
+  t2 <- Sys.time()
+  t2-t1
+  df_mi <- do.call('cbind',list(df_keys,df_mi)) %>% as.data.frame()
+  colnames(df_mi) <- c(colnames(df_keys),"MI")
+  
+  return(df_mi)
+  
+}
+
+## 求相关性
+getPCC <- function(LRTG_score)
+{
+  
+  # 获取df_keys
+  df_keys = data.frame(
+    LRpair = lapply(LRTG_score$LRs_score, function(df){colnames(df)}) %>% unlist(),
+    TG = lapply(1:length(LRTG_score$LRs_score), function(i){
+      rep(names(LRTG_score$LRs_score)[i],ncol(LRTG_score$LRs_score[[i]]))
+    }) %>% unlist()
+  )
+  
+  ## 计算相关性
+  t1 <- Sys.time()
+  df_cor <- lapply(1:nrow(df_keys), function(i){
+    
+    LRexpr = LRTG_score$LRs_score[[df_keys[i,'TG']]][,df_keys[i,'LRpair']]
+    TGexpr = LRTG_score$TGs_expr[[df_keys[i,'TG']]]
+    
+    cor <- cor.test(LRexpr,TGexpr,method = 'pearson')
+    pval <- signif(cor$p.value,digits = 3)
+    R <- signif(cor$estimate,digits = 2)
+    c(R,pval)
+    
+  }) %>% do.call('rbind',.)
+  t2 <- Sys.time()
+  t2-t1
+  colnames(df_cor) <- c("R","pval")
+  df_cor <- cbind(df_keys,df_cor) %>% as.data.frame()
+  
+  return(df_cor)
+  
+}
+
+####################
+## train RF model ##
+####################
+
+# mian
+get_pim_auto = function(trainx, trainy, ncores = 1, auto_para = TRUE, 
+                         n.trees = 500, node.feature = 'sqrt', n.trys = 10, 
+                         tree.method = 'variance', node.size = 5,
+                         nPrem = 10, verbose = TRUE)
+{
+  
+  # data
+  LRpairs = colnames(trainx)
+  data = as.data.frame(cbind(trainx, trainy))
+  colnames(data) = c(paste0('LR',seq(ncol(trainx))), "Target")
+  
+  # get Lig, Rec
+  LRTab = data.frame(LRpair = LRpairs)
+  LRTab$Ligand = strsplit(LRpairs,"_") %>% do.call('rbind',.) %>% .[,1]
+  LRTab$Receptor = strsplit(LRpairs,"_") %>% do.call('rbind',.) %>% .[,2]
+  
+  # remove sample which TG expr = 0
+  cat("\nRemove zero Target")
+  zeroTarget = which(trainy==0)
+  if(length(zeroTarget)>1) data = data[-zeroTarget,]
+  
+  # remove LRpair which LRscore = 0
+  cat("\nRemove zero LR")
+  zeroLR = which(colSums(data[,-ncol(data)]==0)==nrow(data))
+  zeroLR = c(zeroLR,which(is.na(colSums(data[,-ncol(data)]==0))))
+  if(length(zeroLR)>1){
+    data = data[,-zeroLR]
+    LRTab = LRTab[-zeroLR,]
+  }
+  
+  # normalize
+  cat("\nNormalize data")
+  data = scale(data)
+  data = as.data.frame(data)
+  
+  # get optimal parameters of RF model
+  cat("\nParameter Tuning")
+  if(verbose){
+    
+    t1 <- Sys.time()
+    cat(paste0("\nStart at: ",as.character(t1)))
+    
+  }
+  if(auto_para == TRUE){
+    
+    # parameters of automatic tuning parameter
+    fitControl <- trainControl(
+      method = "cv",
+      number = 5,
+      search = 'random',
+      allowParallel = TRUE)
+    
+    # model
+    set.seed(2021)
+    rfFit <- caret::train(Target ~ ., data = data, 
+                          method = 'ranger', 
+                          trControl = fitControl,
+                          tuneLength = 20)
+    
+    # optimal parameter
+    sel_mtry = as.numeric(rfFit$bestTune$mtry)
+    sel_splitrule = as.character(rfFit$bestTune$splitrule)
+    sel_min.node.size = as.numeric(rfFit$bestTune$min.node.size)
+    sel_num.trees = n.trees
+    
+  }else{
+    
+    # sel_mtry = floor(sqrt(ncol(trainx)))
+    sel_mtry = n.trys
+    sel_splitrule = tree.method
+    sel_min.node.size = node.size
+    sel_num.trees = n.trees
+    rfFit <- list()
+    
+  }
+  parameters = list(sel_mtry, sel_splitrule, sel_min.node.size, sel_num.trees)
+  names(parameters) = c('mtry','splitrule','min.node.size','n.trees')
+  cat(paste0("\nThe final parameters used for the model: mtry = ",sel_mtry,
+             ', splitrule = ',sel_splitrule, ', min.node.size = ',sel_min.node.size, 
+             ' ,num.trees = ',sel_num.trees))
+  if(verbose){
+    
+    t2 <- Sys.time()
+    message(paste0("\nEnd at: ",as.character(t2)))
+    message(paste0('\nAbout ',signif(t2-t1,digits = 4),' ',units(t2-t1)))
+    
+  } 
+  
+  # train RF model
+  cat("\nTrain final model")
+  finalFit <- ranger(formula = Target ~ ., data = data, 
+                     num.trees = sel_num.trees, seed = 2021, 
+                     splitrule = sel_splitrule, mtry = sel_mtry, 
+                     min.node.size = sel_min.node.size,
+                     importance = 'permutation', keep.inbag = TRUE, 
+                     oob.error = TRUE, num.threads = ncores)
+  
+  # get permutation importance based on LRpair
+  cat("\nobtain variable importance")
+  df_IM = finalFit$variable.importance
+  df_IM = data.frame(IM = df_IM)
+  df_IM$LRpair = LRTab$LRpair
+  
+  # get permutation importance based on Lig/Rec
+  cat("\nobtain permutation importance")
+  if(verbose){
+    
+    t1 <- Sys.time()
+    message(paste0("\nStart at: ",as.character(t1)))
+    
+  }
+  df_pIM <- lapply(seq(nPrem), function(j){
+    
+    forest = finalFit
+    data_X=data[,-ncol(data)]
+    data_y=data$Target
+    rf_oob_pim(forest, data_X, data_y, LRTab)
+    
+  })
+  df_pIM <- Reduce("+", df_pIM)/nPrem
+  if(verbose){
+    
+    t2 <- Sys.time()
+    message(paste0("\nEnd at: ",as.character(t2)))
+    message(paste0('\nAbout ',signif(t2-t1,digits = 4),' ',units(t2-t1)))
+    
+  }
+  
+  result <- list(model = finalFit,
+                 df_IM = df_IM,
+                 df_pIM = df_pIM,
+                 rfFit = rfFit)
+  
+  return(result)
+}
+
+# get pIM from shuffle and OOB data
+rf_oob_pim = function(forest, data_X, data_y, LRTab)
+{
+  
+  # get pred value based on OOB data
+  oob_pred = rf_oob_pred(forest, data_X)
+  oob_pred = as.data.frame(oob_pred)
+  
+  # MSE before shuffle (500 x 1)
+  oob_mse_bef = lapply(seq(ncol(oob_pred)), function(k){
+    
+    oob_pred_k = oob_pred[,k]
+    mean((oob_pred_k-data_y)^2,na.rm = T)
+    
+  })
+  oob_mse_bef = unlist(oob_mse_bef)
+  
+  # get Lig/Rec
+  Vars = unique(c(LRTab$Ligand,LRTab$Receptor))
+  
+  # MSE after shuffle (500 x len(Vars))
+  oob_mse_aft = lapply(seq(length(Vars)), function(i){
+    
+    # shuffle one Lig/Rec
+    newX = shuffle_LigRec(data_X,i,LRTab)
+    
+    # pred value based on OOB data after shuffle one Lig/Rec
+    oob_pred_i = rf_oob_pred(forest, newX)
+    oob_pred_i = as.data.frame(oob_pred_i)
+    
+    # MSE after shuffle one Lig/Rec
+    oob_mse_aft_i = lapply(seq(ncol(oob_pred_i)), function(k){
+      
+      oob_pred_i_k = oob_pred_i[,k]
+      mean((oob_pred_i_k-data_y)^2,na.rm = T)
+      
+    })
+    oob_mse_aft_i = unlist(oob_mse_aft_i)
+    
+  })
+  oob_mse_aft = do.call("cbind",oob_mse_aft)
+  
+  # mean MSE of each Lig/Rec
+  df_pIM = apply(oob_mse_aft, 2, function(oob_mse_aft_i){ mean(oob_mse_aft_i-oob_mse_bef) })
+  df_pIM = data.frame(pIM = df_pIM)
+  rownames(df_pIM) = paste0('shuffle_',Vars)
+  
+  return(df_pIM)
+  
+}
+
+# OOB data
+# get pred value of OOB data from each tree(n.trees = 500 => 500 trees)
+# for each tree, trainx was split into OOB data (used for evaluation) and train data (used for training RF)
+rf_oob_pred <- function(forest, data_X) 
+{
+  
+  preds <- predict(forest, data_X, predict.all=TRUE)
+  oob <- forest$inbag.counts
+  oob <- do.call("cbind",oob)
+  oob <- oob==0
+  oob[which(!oob)] = NA
+  preds.oob = oob*preds$predictions 
+  return (preds.oob)
+  
+}
+
+# shuffle
+shuffle_LigRec <- function(data_X,i,LRTab)
+{
+  
+  Vars = unique(c(LRTab$Ligand,LRTab$Receptor))
+  var <- Vars[i]
+  var_ids <- union(which(LRTab$Ligand %in% var),which(LRTab$Receptor %in% var))
+  for(id in var_ids) {
+    data_X[,id] <- sample(x = unlist(data_X[,id]), size = nrow(data_X), replace = FALSE)
+  }
+  return(data_X)
+  
+}
+
+###################
+## calculate_auc ##
+###################
+
+## get different metrices and ROC/PRC preformance object
+get_evaluate_metrics <- function(pred,label)
+{
+  
+  find_optimal_cutoff <- function(TPR, FPR, threshold){
+    
+    y = TPR - FPR
+    Youden_index = which.max(y)
+    # optimal_threshold = threshold[Youden_index]
+    return(Youden_index)
+    
+  }
+  
+  if(length(which(label==TRUE))!=0 & length(which(label==FALSE))!=0){
+    
+    pred <- prediction(pred, label)
+    
+    perf_ROC <- performance(pred, measure = "tpr", x.measure = "fpr")
+    ind_ROC <- find_optimal_cutoff(perf_ROC@y.values[[1]],perf_ROC@x.values[[1]],perf_ROC@alpha.values[[1]])
+    cutoff_ROC <- perf_ROC@alpha.values[[1]][ind_ROC]
+    
+    perf_PRC <- performance(pred, measure = "prec", x.measure = "rec")
+    ind_PRC <- find_optimal_cutoff(perf_PRC@y.values[[1]],perf_PRC@x.values[[1]],perf_PRC@alpha.values[[1]])
+    cutoff_PRC <- perf_PRC@alpha.values[[1]][ind_PRC]
+    
+    ACC <- performance(pred, measure = "acc")@y.values[[1]] %>% .[ind_ROC] %>% signif(.,4)
+    ERR <- performance(pred, measure = "err")@y.values[[1]] %>% .[ind_ROC]  %>% signif(.,4)
+    PPV <- performance(pred, measure = "ppv")@y.values[[1]] %>% .[ind_ROC]  %>% signif(.,4)
+    MCC <- performance(pred, measure = "mat")@y.values[[1]] %>% .[ind_ROC]  %>% signif(.,4)
+    
+    AUC <- performance(pred, measure = "auc")@y.values[[1]] %>% signif(.,4)
+    AUCPR <- performance(pred, measure = "aucpr")@y.values[[1]] %>% signif(.,4)
+    
+    res = list(perf_ROC = perf_ROC,
+               perf_PRC = perf_PRC,
+               perf_metrics = c(ROC_AUC=AUC,PRC_AUC=AUCPR,
+                                ACC=ACC,ERR=ERR,PPV=PPV,MCC=MCC))
+    
+  }else{
+    
+    res <- list(perf_ROC = NA, perf_PRC = NA, 
+                perf_metrics = rep(0,6))
+    names(res$perf_metrics) <- c('ROC_AUC','PRC_AUC','ACC','ERR','PPV','MCC')
+    
+  }
+  
+  
+  return(res)
+  
+}
+
+## get points from ROC/PRC preformance object to draw ROC/PRC curve
+get_curve_input <- function(res_metrics, curve_type = 'ROC')
+{
+  
+  if(curve_type == 'ROC'){
+    
+    model <- res_metrics$perf_ROC
+    AUC <- res_metrics$perf_metrics['ROC_AUC'] %>% signif(.,4)
+    
+  }else{
+    
+    model <- res_metrics$perf_PRC
+    AUC <- res_metrics$perf_metrics['PRC_AUC'] %>% signif(.,4)
+    
+  }
+  
+  if(class(model)[1] != 'performance'){
+    v_x <- 0
+    v_y <- 0
+  }else{
+    v_x <- model@x.values[[1]]
+    v_y <- model@y.values[[1]]
+  }
+  
+  res <- data.frame(x = v_x, y = v_y, AUC = AUC, row.names = NULL)
+  res[is.na(res)] <- 0
+  if(curve_type == 'ROC') colnames(res) <- c('FPR','TPR','AUC')
+  if(curve_type == 'PRC') colnames(res) <- c('Recall','Precision','AUC')
+  
+  return(res)
+}
+
+## organize the result from 'get_evaluate_metrics' function
+clean_res_metrcs <- function(res_metrics, sheetID, method){
+  
+  df_metrics <- res_metrics$perf_metrics
+  df_metrics <- matrix(c(df_metrics,sheetID)) %>% t() %>% as.data.frame()
+  rownames(df_metrics) <- NULL
+  colnames(df_metrics) <- c(names(res_metrics$perf_metrics),'sheet')
+  df_metrics$method <- method
+  
+  df_ROC <- get_curve_input(res_metrics = res_metrics, curve_type = 'ROC')
+  df_ROC$method <- method
+  df_ROC$sheet <- sheetID 
+  
+  df_PRC <- get_curve_input(res_metrics = res_metrics, curve_type = 'PRC')
+  df_PRC$method <- method
+  df_PRC$sheet <- sheetID
+  
+  res <- list(df_metrics=df_metrics,df_ROC=df_ROC,df_PRC=df_PRC)
+}
+
+##################
+## visualizeCCI ##
+##################
+
+# NetworkPlot
+DrawLeg <- function(alltype,allcolos,xstart,ystart,cirr,jiange)
+{
+  ThisX <- xstart
+  ThisY <- ystart
+  for(i in seq(1,length(alltype)))
+  {
+    ThisType <- alltype[i]
+    draw.circle(ThisX,ThisY,cirr,col = allcolos[ThisType])
+    text(ThisX+cirr+0.1,ThisY,ThisType,adj = 0)
+    
+    ThisY <- ThisY - (2*cirr + jiange)
+  }
+}
+
+DrawCellComm <- function(CellTab,colodb,gtitle = 'TME')
+{
+  
+  aaa <- CellTab
+  g <- graph.data.frame(aaa,directed=TRUE)
+  alltype <- c(aaa$cell_from,aaa$cell_to)
+  alltype <- unique(alltype)
+  # allcolos <- rainbow(length(alltype))
+  ChoColorNum <- alltype# 1:length(alltype) # sample(1:length(colodb),length(alltype), replace = FALSE)
+  
+  allcolos <- colodb[ChoColorNum]
+  names(allcolos) <- alltype
+  
+  edge.start <- ends(g,es=E(g),names=FALSE)
+  
+  layout <- in_circle()  #igraph packages
+  coords <- layout_(g,layout)
+  if(nrow(coords)!=1){
+    coords_scale=scale(coords)
+  }else{
+    coords_scale<-coords
+  }
+  
+  loop.angle <- ifelse(coords_scale[V(g),1]>0,-atan(coords_scale[V(g),2]/coords_scale[V(g),1]),pi-atan(coords_scale[V(g),2]/coords_scale[V(g),1]))
+  
+  vertex.label.color <- 'black'
+  V(g)$size <- 20
+  V(g)$color <- allcolos[V(g)]
+  V(g)$label.color <- vertex.label.color
+  V(g)$label.cex <- 0
+  
+  label <- FALSE
+  if(label){
+    E(g)$label<-E(g)$n
+  }
+  
+  edge.max.width = 10
+  if(max(E(g)$n)==min(E(g)$n)){
+    E(g)$width <- 2
+  }else{
+    E(g)$width <- 1+edge.max.width/(max(E(g)$n)-min(E(g)$n))*(E(g)$n-min(E(g)$n))
+  }
+  
+  edge.label.color <- "black"
+  E(g)$arrow.width<- 1
+  E(g)$arrow.size <- 0.1
+  E(g)$label.color <- edge.label.color
+  E(g)$label.cex <- 1
+  E(g)$color <- V(g)$color[edge.start[,1]]
+  
+  if(sum(edge.start[,2]==edge.start[,1])!=0)
+  {
+    E(g)$loop.angle[which(edge.start[,2]==edge.start[,1])]<-loop.angle[edge.start[which(edge.start[,2]==edge.start[,1]),1]]
+  }
+  
+  #draw 
+  shape = 'circle'
+  margin = 0.2
+  edgecurved = 0.2
+  vertexlabelcex = 1
+  plot(
+    g,
+    edge.curved=edgecurved,
+    vertex.label = "",
+    vertex.shape=shape,
+    layout=coords_scale,
+    margin=margin,
+    vertex.shape="fcircle",
+    vertex.label.cex = vertexlabelcex,
+    axes = FALSE
+  )
+  
+  #draw legend
+  xstart <- 1.5
+  ystart <- 0.5
+  jiange <- 0.02
+  cirr <- 0.04
+  DrawLeg(alltype,allcolos,xstart,ystart,cirr,jiange)
+  
+  #title
+  title(main = list(gtitle, cex=2))
+  
+}
+
+# MLnetPlot
+
+prepareMLnetworkPlotData_V3 <- function(
+  mlnet = NULL, # 画图依据
+  lrtg_im = NULL,  #过滤依据
+  Key,Type, do.check = FALSE
+)
+{
+  
+  # Key = 'IGF1'
+  # Type = 'Ligand'
+  # mlnet = MLnet
+  # lrtg_im = LRTG_im
+  
+  if(Type == 'Ligand'){
+    
+    mlnet$LigRec <- mlnet$LigRec[mlnet$LigRec$source %in% Key,]
+    mlnet$RecTF <- mlnet$RecTF[mlnet$RecTF$source %in% mlnet$LigRec$target,]
+    mlnet$TFTar <- mlnet$TFTar[mlnet$TFTar$source %in% mlnet$RecTF$target,]
+    lrtg_im = lrtg_im %>% dplyr::select(.,Ligand,Receptor,Target,Score = im_norm) %>% dplyr::filter(Ligand %in% Key)
+    
+  }else{
+    
+    mlnet$LigRec <- mlnet$LigRec[mlnet$LigRec$target %in% Key,]
+    mlnet$RecTF <- mlnet$RecTF[mlnet$RecTF$source %in% mlnet$LigRec$target,]
+    mlnet$TFTar <- mlnet$TFTar[mlnet$TFTar$source %in% mlnet$RecTF$target,]
+    lrtg_im = lrtg_im %>% dplyr::select(Ligand,Receptor,Target,Score = im_norm) %>% dplyr::filter(Receptor %in% Key)
+    
+  }
+  
+  if(do.check & nrow(lrtg_im)>10){
+    
+    message('using the score of LRTG to narrow down for better visualization')
+    tg_im_check <- lrtg_im %>% group_by(Target) %>% 
+      summarise(sum_Score=sum(Score)) %>% arrange(desc(sum_Score)) %>% 
+      dplyr::select(Target) %>% unlist() %>% head(10)
+    
+    mlnet_check <- mlnet
+    mlnet_check$TFTar <- mlnet_check$TFTar[mlnet_check$TFTar$target %in% tg_im_check,]
+    mlnet_check$RecTF <- mlnet_check$RecTF[mlnet_check$RecTF$target %in% mlnet_check$TFTar$source,]
+    mlnet_check$LigRec <- mlnet_check$LigRec[mlnet_check$LigRec$target %in% mlnet_check$RecTF$source,]
+    mlnet <- mlnet_check
+    
+  }
+  
+  
+  return(mlnet_check)
+}
+
+drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
+                                 gtitle = 'TME',wd = './',p_height=4,p_width=6)
+{
+  
+  # mlnet <- MLnet_key
+  Ligs <- unique(mlnet$LigRec$source)
+  Recs <- unique(mlnet$LigRec$target)
+  TFs <- unique(mlnet$TFTar$source)
+  TGs <- unique(mlnet$TFTar$target)
+  TGs <- TGs[!TGs %in% c(Ligs,Recs,TFs)]
+  df_nodes <- data.frame(node = c(Ligs,Recs,TFs,TGs),
+                         key = c(rep('Ligand',length(Ligs)),
+                                 rep('Receptor',length(Recs)),
+                                 rep('TF',length(TFs)),
+                                 rep('Target',length(TGs))))
+  df_nodes$color <- colodb[df_nodes$key]
+  df_edges <- do.call("rbind",list(mlnet$LigRec,mlnet$RecTF,mlnet$TFTar))
+  
+  subnet <- graph_from_data_frame(d = df_edges, vertices = df_nodes)
+  df_nodes <- df_nodes[match(names(V(subnet)),df_nodes$node),]
+  root_index <- grep('Ligand',df_nodes$key)
+  set.seed(4)
+  coords <- layout_(subnet,layout = as_tree(root = root_index)) %>% as.data.frame()
+  coords <- cbind(coords,df_nodes$key)
+  colnames(coords) <- c('dim_x','dim_y','type')
+  
+  dist_TG <- 1;len_TG <- table(coords$type)[['Target']]
+  dist_TF <- 1.5;len_TF <- table(coords$type)[['TF']]
+  dist_Rec <- 2.5;len_Rec <- table(coords$type)[['Receptor']]
+  dist_Lig <- 2.5;len_Lig <- table(coords$type)[['Ligand']]
+  if(len_Lig==1){
+    coords$dim_x[coords$type == 'Ligand'] = 0
+  }else{
+    dim_x_1 = seq(to = -dist_Lig/2,by = dist_Lig,length.out = ceiling(len_Lig/2))
+    dim_x_2 = seq(from = dist_Lig/2,by = dist_Lig,length.out = len_Lig-ceiling(len_Lig/2))
+    coords$dim_x[coords$type == 'Ligand'] = c(dim_x_1,dim_x_2) %>% scale(.,scale = F) %>% as.vector()
+  }
+  if(len_Rec==1){
+    coords$dim_x[coords$type == 'Receptor'] = 0
+  }else{
+    dim_x_1 = seq(to = -dist_Rec/2,by = dist_Rec,length.out = ceiling(len_Rec/2))
+    dim_x_2 = seq(from = dist_Rec/2,by = dist_Rec,length.out = len_Rec-ceiling(len_Rec/2))
+    coords$dim_x[coords$type == 'Receptor'] = c(dim_x_1,dim_x_2) %>% scale(.,scale = F) %>% as.vector()
+  }
+  if(len_TG<len_TF & len_TF>10){
+    
+    dist_TG <- 1
+    dist_TF <- 0.5
+    
+  }else if(len_TG>len_TF & len_TG>10){
+    
+    dist_TG <- 0.5
+    dist_TF <- 1
+    
+  }
+  if(len_TF==1){
+    coords$dim_x[coords$type == 'TF'] = 0
+  }else{
+    dim_x_1 = seq(to = -dist_TF/2,by = dist_TF,length.out = ceiling(len_TF/2))
+    dim_x_2 = seq(from = dist_TF/2,by = dist_TF,length.out = len_TF-ceiling(len_TF/2))
+    coords$dim_x[coords$type == 'TF'] = c(dim_x_1,dim_x_2) %>% scale(.,scale = F) %>% as.vector()
+  }
+  if(len_TG==1){
+    coords$dim_x[coords$type == 'Target'] = 0
+  }else{
+    dim_x_1 = seq(to = -dist_TG/2,by = dist_TG,length.out = ceiling(len_TG/2))
+    dim_x_2 = seq(from = dist_TG/2,by = dist_TG,length.out = len_TG-ceiling(len_TG/2))
+    coords$dim_x[coords$type == 'Target'] = c(dim_x_1,dim_x_2) %>% scale(.,scale = F) %>% as.vector()
+  }
+  coords$dim_y <- lapply(coords$type,switch,'Ligand'=0.9,'Receptor'=0.6,'TF'=0.3,'Target'=0) %>% unlist()
+  # plot(subnet, layout = as.matrix(coords[,1:2]), vertex.color=df_nodes$color)
+  
+  layout <- create_layout(subnet, layout = 'tree')
+  layout[,1:2] <- coords[,1:2]
+  # head(layout)
+  
+  temp <- function(key){
+    
+    max(coords$dim_x[coords$type==key])+0.5
+    
+  }
+  df_anno <- data.frame(x = lapply(unique(layout$key), temp) %>% unlist(),
+                        y = c(0.92,0.62,0.32,0.02),
+                        lab = unique(layout$key),
+                        key = unique(layout$key))
+  if(downstream != 'Target'){
+    
+    layout <- layout[layout$key != 'Target',]
+    df_anno <- df_anno[df_anno$key != 'Target',]
+    
+  }
+  
+  # windowsFonts(HEL=windowsFont("Helvetica CE 55 Roman"),
+  #              RMN=windowsFont("Times New Roman"),
+  #              ARL=windowsFont("Arial"))
+  
+  pt <- ggraph(layout) +
+    geom_edge_link(aes(),color="grey",
+                   arrow = arrow(length = unit(1.5, 'mm')), 
+                   start_cap = circle(3, 'mm'),
+                   end_cap = circle(3, 'mm')) + 
+    geom_node_point(aes(fill = key,color = key),shape=21,size = 8) +
+    geom_node_text(aes(label=name),size=2) + # ,fontface='bold',family='Arial'
+    xlim(c(min(layout$x)-2,max(layout$x)+2)) +
+    geom_text(data = df_anno, aes(x,y,label=lab,color=key),
+              vjust = 1, hjust = 0, size = 4,fontface='bold') + # ,family='ARL'
+    scale_fill_manual(values = colodb) + scale_color_manual(values = colodb) +
+    guides(fill='none',color='none') +
+    theme_graph()
+  print(pt)
+  
+  ## save
+  
+  pdf(paste0(wd,'MLnetPlot3-',gtitle,'.pdf'),height = p_height,width = p_width)
+  print(pt)
+  dev.off()
+  
+  png(paste0(wd,'MLnetPlot3-',gtitle,'.png'),height = p_height,width = p_width, units = 'in', res = 300)
+  print(pt)
+  dev.off()
+  
+}
+
+# EdgeBundlingPlot
+
+prepareEdgeBundlingPlotData_V2 <- function(df_LRTGscore, do.check = FALSE){
+  
+  # edge
+  df_LRTGscore$from = paste(df_LRTGscore$source,df_LRTGscore$source_group,sep = "_")
+  df_LRTGscore$to = paste(df_LRTGscore$target,df_LRTGscore$target_group,sep = "_")
+  df_edge <- df_LRTGscore[,c('from','to')]
+  
+  # hierarchy
+  d1 <- data.frame(from="cell", to=c('Sender','Receiver'))
+  d2 <- data.frame(from=c(rep('Sender',length(unique(df_LRTGscore$source_group))),'Receiver'), 
+                   to=c(unique(df_LRTGscore$source_group),unique(df_LRTGscore$target_group)))
+  d3 <- data.frame(from=c(df_LRTGscore$source_group,df_LRTGscore$target_group), 
+                   to=c(df_edge$from,df_edge$to))
+  d3 <- d3[!duplicated(d3),]
+  df_hierarchy <- do.call('rbind',list(d1,d2,d3))
+  
+  # node
+  df_node  <-  data.frame(
+    name = unique(c(as.character(df_hierarchy$from), as.character(df_hierarchy$to)))
+  ) 
+  df_node$label <- gsub("_.*","",df_node$name)
+  df_node$group <- df_hierarchy$from[match(df_node$name, df_hierarchy$to)]
+  df_node$group <- factor(df_node$group,levels=unique(df_node$group))
+  df_node$score <- df_LRTGscore$count[match(df_node$name,df_LRTGscore$from)]
+  df_node$score <- replace(df_node$score,is.na(df_node$score),1e-5)
+  
+  # check size
+  if(do.check & nrow(df_edge)>50){
+    
+    message('try to narrow down the number of LR for better visualization')
+    df_node$rank <- Inf
+    df_node$rank[df_node$group %in% d2$to[d2$from == 'Sender']] <- df_node$score[df_node$group %in% d2$to[d2$from == 'Sender']] %>% rank()
+    
+    df_node_check <- df_node
+    df_node_check <- df_node_check[df_node_check$rank >= max(df_node_check$rank[is.finite(df_node_check$rank)])-49,]
+    
+    df_edge_check <- df_edge[df_edge$from %in% df_node_check$name,]
+    
+    df_node_check <- df_node_check[df_node_check$name %in% 
+                                     c(d1$from,d1$to,
+                                       df_node_check$group %>% as.character(),
+                                       df_edge_check$from,df_edge_check$to),]
+    
+    df_hierarchy_check <- df_hierarchy[df_hierarchy$to %in% df_node_check$name,]
+    
+    df_node <- df_node_check
+    rownames(df_node) <- seq(nrow(df_node))
+    df_edge <- df_edge_check
+    rownames(df_edge) <- seq(nrow(df_edge))
+    df_hierarchy <- df_hierarchy_check
+    rownames(df_hierarchy) <- seq(nrow(df_hierarchy))
+    
+  }
+  
+  # attr
+  
+  index_myleaves <- grep('^cell$|Sender|Receiver',df_node$group,invert = T)[-1]
+  index_midleaves <- floor(length(index_myleaves)/2) # floor(nrow(df_node)/2)
+  index_myleaves <- c(index_midleaves:max(index_myleaves),min(index_myleaves):(index_midleaves-1))
+  nleaves <- length(index_myleaves)
+  
+  df_node$id <- 0
+  df_node$id[index_myleaves] <- seq(1:length(index_myleaves))
+  
+  df_node$angle <- 90 - 360 * df_node$id / nleaves
+  df_node$hjust <- lapply(df_node$angle,function(x){
+    if(x < -90 & x != 90) hjust <- 0.5
+    if(x >= -90 & x != 90) hjust <- 2
+    if(x == 90) hjust <- 0
+    hjust
+  }) %>% unlist()
+  df_node$angle <- ifelse(df_node$angle < -90, df_node$angle+180, df_node$angle)
+  
+  # merge
+  df_input <- list(df_node = df_node, df_edge = df_edge, df_hierarchy = df_hierarchy)
+  return(df_input)
+  
+}
+
+drawEdgeBundlingPlot <-function(df_input,colodb,gtitle = 'TME',wd = './', p_height=7.5, p_width=7){
+  
+  # graph
+  
+  df_node <- df_input$df_node # node attr
+  df_hierarchy <- df_input$df_hierarchy # edge
+  mygraph <- graph_from_data_frame(df_hierarchy, vertices = df_node)
+  
+  node_color <- colodb[names(colodb) %in% unique(df_node$label)]
+  
+  df_edge <- df_input$df_edge # 
+  from  <-  match(df_edge$from, df_node$name)
+  to  <-  match(df_edge$to, df_node$name)
+  
+  ## plot
+  
+  pt <- ggraph(mygraph, layout = 'dendrogram', circular = TRUE) + 
+    #alpha线的透明度，width线的宽度，tension是线的“密集”程度
+    geom_conn_bundle(data = get_con(from = from, to = to), 
+                     alpha=1, aes(colour=group, width=score),tension=0.5) +
+    # 设置边颜色
+    scale_edge_color_manual(values = node_color,guide='none')+
+    # 设置边粗细
+    scale_edge_width(range = c(0,1)) + 
+    # 设置节点标签，字体大小，文本注释信息
+    geom_node_text(aes(x = x*1.15, y=y*1.15, filter = leaf, label=label,
+                       angle = angle, hjust=hjust*0.5, colour=group), size=3, alpha=1, show.legend=F) +
+    # 设置节点的大小，颜色和透明度
+    geom_node_point(aes(filter = leaf, x = x*1.07, y=y*1.07, 
+                        colour=group, size=score, alpha=1)) +
+    # 设置节点颜色
+    scale_colour_manual(values = node_color,name="celltype",
+                        breaks=names(node_color)[!names(node_color) %in% c('cell','Sender','Receiver')],) +
+    # 设置节点大小的范围
+    scale_size_continuous(range = c(1,5)) + theme_void() +
+    # 去除alpha图例
+    scale_alpha(guide = 'none') +
+    theme(
+      legend.position = 'bottom',
+      # legend.direction = 'vertical',
+      legend.box = 'vertical'
+    ) 
+  print(pt)
+  
+  ## save
+
+  pdf(paste0(wd,'EdgeBundlingPlot-',gtitle,'.pdf'),height = p_height, width = p_width)
+  print(pt)
+  dev.off()
+  
+  png(paste0(wd,'EdgeBundlingPlot-',gtitle,'.png'),
+      height = p_height, width = p_width, units = 'in', res = 300)
+  print(pt)
+  dev.off()
+  
+  
+}
+
+# AlluviumPlot
+
+prepareAlluviumPlotData_V2 <- function(
+  mlnet = NULL, # list of mlnet consisting of LigRec, RecTF, TFTar
+  lrtg_im = NULL, # replace of mlnet.list when using score
+  color.by = 'Nodekey', # color: Nodekey/Node/cellpair/Ligand/...
+  do.check = FALSE
+){
+  
+  if(!is.null(mlnet)){
+    
+    # mlnet = MLnet
+    df_ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
+    df_rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
+    df_tftar = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
+    
+    df_mlnet = df_ligrec %>% merge(., df_rectf, by = 'Receptor') %>% 
+      merge(., df_tftar, by = 'TF') %>% 
+      dplyr::select(Ligand, Receptor, TF, Target) %>% 
+      arrange(Ligand, Receptor)
+    df_mlnet$Score <- 1
+    df_mlnet$ID <- seq(nrow(df_mlnet))
+    df_plot <- df_mlnet
+    
+  }else if(!is.null(lrtg_im)){
+    
+    # lrtg_im = LRTG_im_merge
+    df_lrtg_im = lrtg_im
+    colnames(df_lrtg_im)[grep('im_norm',colnames(df_lrtg_im))] <- 'Score'
+    df_lrtg_im$ID <- seq(nrow(df_lrtg_im))
+    df_plot <- df_lrtg_im
+    
+  }
+  
+  if(do.check & nrow(df_plot)>30){
+    
+    if(sd(df_plot$Score)!=0){
+      
+      message('using the score of LRTG to narrow down for better visualization')
+      df_plot_check <- df_plot
+      df_plot_check$rank <- df_plot_check$Score %>% rank()
+      df_plot_check <- df_plot_check[df_plot_check$rank >= max(df_plot_check$rank)-29,]
+      df_plot <- df_plot_check
+      
+    }else{
+      
+      message('using the number of Target to narrow down for better visualization')
+      df_plot_check <- df_plot
+      df_plot_check <- df_plot_check %>% group_by(Ligand,Receptor,TF) %>% 
+        summarise(count=n()) %>% arrange(desc(count)) %>% ungroup() %>%
+        inner_join(df_plot_check,., by = c('Ligand','Receptor','TF')) 
+      df_plot_check$rank <- df_plot_check$count %>% rank()
+      df_plot_check <- df_plot_check[df_plot_check$rank >= max(df_plot_check$rank)-29,]
+      df_plot <- df_plot_check
+      
+    }
+    
+  }
+  
+  df_plot <- df_plot[,-grep('LRpair|IM|rank',colnames(df_plot))]
+  df_plot_long <- reshape2::melt(df_plot, id = c('Score','ID','Sender'))
+  colnames(df_plot_long) <- c("Score",'ID','Sender',"Nodekey","Node")
+  
+  # df_plot_long$Score <- (df_plot_long$Score-min(df_plot_long$Score))/(max(df_plot_long$Score)-min(df_plot_long$Score))
+  
+  if(color.by == 'Nodekey'){
+    df_plot_long$color <- df_plot_long$Nodekey
+  }else if(color.by == 'Node'){
+    df_plot_long$color <- df_plot_long$Node
+  }else{
+    df_plot_long$color <- df_plot[[color.by]][match(df_plot_long$ID,df_plot$ID)]
+  }
+  
+  return(df_plot_long)
+  
+}
+
+drawAlluviumPlot <- function(
+  dat, colodb, 
+  gtitle = 'groundtrue', # vector
+  wd = './visualize_CCI/AlluviumPlot/',
+  p_height=9, p_width=18
+){
+  
+  # dat <- df_plot_long
+  # dat <- df_MLnet_long_check
+  
+  pt_color <- colodb
+  if(!any(unique(dat$color) %in% names(pt_color))){
+    pt_color <- rainbow(length(unique(dat$color)))
+    names(pt_color) <- unique(dat$color)
+  }else{
+    pt_color <- pt_color[names(pt_color) %in% unique(dat$color)]
+  }
+  
+  pt <- ggplot(data = dat,
+               aes(x = Nodekey,y = Score,
+                   stratum = Node, alluvium = ID,label = Node)) +
+    geom_flow(aes(fill = color)) + geom_stratum() + 
+    theme_minimal() + geom_text(stat = "stratum", size = 3,check_overlap = F) +
+    ggtitle("Multilayer Network", gtitle) +
+    scale_fill_manual(values = pt_color,  name="color",breaks=names(pt_color)) +
+    theme(
+      axis.title = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_text(size = 11),
+      plot.title = element_text(size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 13, hjust = 0.5),
+      panel.grid = element_blank(),
+      legend.position = 'none'
+    )
+  pt
+  
+  ## save
+
+  pdf(paste0(wd,'AlluviumPlot-',gtitle,'.pdf'),height = p_height,width = p_width)
+  print(pt)
+  dev.off()
+  
+  png(paste0(wd,'AlluviumPlot-',gtitle,'.png'),height = p_height,width = p_width, units = 'in', res = 300)
+  print(pt)
+  dev.off()
+  
+  return(pt)
+}
+
+# Enrichment
+Perf_ORA <- function(ls_tg,DB=c('GO','KEGG'))
+{
+  
+  # ls_tg <- LRTG_pim$C5AR2$Target
+  geneList <- ls_tg
+  g2s <- toTable(org.Hs.egSYMBOL)
+  geneList <- g2s$gene_id[match(geneList,g2s$symbol)]
+  geneList <- na.omit(geneList)
+  
+  tryCatch({
+    if(DB == 'GO'){
+      
+      res_enrich <- enrichGO(geneList, 'org.Hs.eg.db', ont = 'ALL', keyType = 'ENTREZID', 
+                             minGSSize = 1, pvalueCutoff = 0.99)@result
+      res_enrich$GeneRatio <- res_enrich$Count/length(enrich_gobp@gene)
+      res_enrich <- res_enrich[,c("ID","Description","GeneRatio","p.adjust",'ONTOLOGY')]
+      
+    }else{
+      
+      res_enrich <- enrichKEGG(geneList, minGSSize = 1, pvalueCutoff = 0.99)@result
+      res_enrich$GeneRatio <- res_enrich$Count/length(enrich_kegg@gene)
+      res_enrich <- res_enrich[,c("ID","Description","GeneRatio","p.adjust")]
+      res_enrich$ONTOLOGY <- 'KEGG'
+      
+    }
+  }, error = function(e){
+    res_enrich <- as.data.frame(matrix(
+      ncol = 5,dimnames = list(c(),c("ID","Description","GeneRatio","p.adjust",'ONTOLOGY'))))
+  })
+  
+  if(!exists('res_enrich')){
+    res_enrich <- as.data.frame(matrix(
+      ncol = 5,dimnames = list(c(),c("ID","Description","GeneRatio","p.adjust",'ONTOLOGY'))))
+  }
+  
+  return(res_enrich)
+}
+
+Perf_GSEA <- function(df_tg,DB=c('KEGG','BIOCARTA'))
+{
+  
+  # df_tg <- LRTG_pim[[4]]
+  geneList <- df_tg$pIM
+  names(geneList) = df_tg$Target
+  geneList <- geneList[order(geneList, decreasing = T)]
+  
+  cp.gmt <- read.gmt("./vaild_scRNAseq/visualize_CCI/input/c2.cp.v7.4.symbols.gmt")
+  cp.gmt$database <- as.character(cp.gmt$term) %>% lapply(., function(term){strsplit(term,"_")[[1]][1]}) %>% unlist() 
+  cp.gmt.sel <- cp.gmt[cp.gmt$database == DB,]
+  
+  tryCatch(expr = {
+    res_gsea <- GSEA(geneList, TERM2GENE=cp.gmt.sel, minGSSize = 1, pvalueCutoff = 0.99, verbose=FALSE, seed = 1)
+  },error = function(e){
+    res_gsea <- NA
+  })
+  if(!exists('res_gsea')){
+    res_gsea <- NA
+  }
+  
+  return(res_gsea)
+}
+
+Perf_Enrich <- function(ls_im,Type=c('ORA','GSEA'),DB=c('GO','KEGG'))
+{
+  
+  # ls_im <- LRTG_im_spl
+  Recs <- names(ls_im)
+  if(Type == 'ORA'){
+    
+    res_enrich <- lapply(1:length(Recs), function(i){
+      
+      # rec <- 'ACVR2A'
+      print(paste0(i,"/",length(Recs)))
+      tgs <- ls_im[[i]]$Target
+      
+      res_ORA <- Perf_ORA(tgs,DB=DB)
+      if(nrow(res_ORA)==0){
+        res_ORA <- as.data.frame(matrix(
+          ncol = 6,dimnames = list(c(),
+                                   c("ID","Description","GeneRatio","p.adjust","ONTOLOGY","Regulator"))))
+        res_ORA
+      }else{
+        res_ORA$Regulator <- Recs[i]
+        res_ORA
+      }
+      
+    }) %>% do.call('rbind',.)
+    
+  }else{
+    
+    res_enrich <- lapply(1:length(Recs), function(i){
+      
+      # i=4
+      print(paste0(i,"/",length(Recs)))
+      df_tg <- ls_im[[i]]
+      
+      res_GSEA <- Perf_GSEA(df_tg,DB=DB)
+      
+    })
+    names(res_enrich) <- Recs
+    
+  }
+  
+  return(res_enrich)
+}
+
+####################
+## other function ##
+####################
+
+## RCTD function: decompose a doublet into two cells
+decompose_doublet_fast <- function(barcode){
+  
+  gene_list = myRCTD@internal_vars$gene_list_bulk
+  cell_type_info = myRCTD@cell_type_info$renorm
+  type1 = results$results_df[barcode, "first_type"]
+  type2 = results$results_df[barcode, "second_type"]
+  weights = results$weights_doublet[barcode, ]
+  # counts <- as.matrix(myRCTD@spatialRNA@counts)
+  # bead = counts[gene_list, barcode]
+  bead = myRCTD@spatialRNA@counts[gene_list, barcode]
+  N_genes = length(gene_list)
+  epsilon = 1e-10
+  
+  de_result = lapply(1:N_genes, function(ind){
+    gene = gene_list[ind]
+    if(bead[ind] == 0){
+      c(expect_1 = 0,
+        expect_2 = 0,
+        variance = 0) 
+    }else{
+      denom = weights[1] * cell_type_info[[1]][gene,type1] + 
+        weights[2] * cell_type_info[[1]][gene,type2] + 
+        epsilon
+      posterior_1 = (weights[1] * cell_type_info[[1]][gene,type1] + epsilon / 2) / denom
+      c(expect_1 = posterior_1 * bead[gene],
+        expect_2 = bead[gene] - posterior_1 * bead[gene],
+        variance = posterior_1 * bead[gene] * (1 - posterior_1)) 
+    }
+  })
+  
+  l1 = do.call('c', de_result)
+  l2 = split(l1,stringr::str_extract(names(l1),"(expect_2)|(expect_1)|(variance)"))
+  
+  return(l2)
+}
+
+## RCTD function: remap celltypes
+remap_celltypes <- function(cell_dict_file, cell_ident) {
+  cell_type_dict <- read.csv(file=cell_dict_file, header=TRUE, sep=",")
+  cell_type_dict$Name <- factor(cell_type_dict$Name)
+  rownames(cell_type_dict) = cell_type_dict[,'Cluster']
+  true_type_names = lapply(cell_ident, function(x) cell_type_dict[as.character(x),"Name"])
+  true_type_names = unlist(true_type_names)
+}
+
+## RCTD function: create downsampled data for deconvolution
+create_downsampled_data <- function(reference, refdir, cell_type_import = NULL,n_samples = 1000, each_cell_type = T,save.file = T) {
+  if(!each_cell_type)
+    index_keep = sample(which(reference@meta.data$liger_ident_coarse != ""),n_samples,replace=FALSE)
+  else {
+    if(is.null(cell_type_import))
+      cell_type_import = levels(reference@meta.data$liger_ident_coarse)
+    cell_type_import = cell_type_import[unlist(lapply(cell_type_import, function(x) nchar(x) > 0))]
+    index_keep = c(); i = 1
+    repeat{
+      new_index = which(reference@meta.data$liger_ident_coarse == cell_type_import[i])
+      new_samples = min(n_samples, length(new_index))
+      index_keep = c(index_keep, sample(new_index,new_samples,replace=FALSE))
+      if((i = i + 1) > length(cell_type_import))
+        break
+    }
+  }
+  reference@assays$RNA@counts = reference@assays$RNA@counts[,index_keep]
+  reference@meta.data = reference@meta.data[index_keep,]
+  reference@meta.data$liger_ident_coarse = droplevels(reference@meta.data$liger_ident_coarse)
+  reference@assays$RNA@data <-matrix(0,nrow=2,ncol=2)
+  reference@assays$RNA@scale.data <- matrix(0,nrow=2,ncol=2)
+  if(save.file)
+    saveRDS(reference, paste(refdir,"/scRefSubsampled", n_samples, ".RDS",sep=""))
+  return(reference)
+}
+
+## load simulation data
+prepare_input_data <- function(sheetID)
+{
+  
+  exprMat <- openxlsx::read.xlsx("./data/ExpressionMatrix_100_slides.xlsx", 
+                                 sheet = sheetID, colNames = F, startRow = 2)
+  colnames(exprMat) <- paste0('Cell_',1:ncol(exprMat))
+  rownames(exprMat) <- c(paste0('Lig',1:5),paste0('Rec',1:2),paste0('TF',1:3),paste0('TG',1:4))
+  
+  locaMat <- openxlsx::read.xlsx("./data/Lable_Coordinates_100_slides.xlsx", 
+                                 sheet = sheetID, colNames = F, )
+  locaMat <- locaMat[,-1]
+  rownames(locaMat) <- colnames(exprMat)
+  colnames(locaMat) <- c('dim_x','dim_y')
+  
+  annoMat <- openxlsx::read.xlsx("./data/ExpressionMatrix_100_slides.xlsx", 
+                                 sheet = sheetID, colNames = F, rows = 1)
+  annoMat <- rbind(colnames(exprMat),annoMat) %>% t() %>% as.data.frame()
+  colnames(annoMat) <- c('Barcode','Cluster')
+  rownames(annoMat) <- NULL
+  annoMat$Cluster <- paste0("CT_",annoMat$Cluster)
+  
+  locaMat <- locaMat[!duplicated(locaMat),]
+  annoMat <- annoMat[annoMat$Barcode %in% rownames(locaMat),]
+  exprMat <- exprMat[colnames(exprMat) %in% rownames(locaMat)]
+  
+  res = list(exprMat=exprMat, locaMat=locaMat, annoMat=annoMat)
+  return(res)
+  
+}
