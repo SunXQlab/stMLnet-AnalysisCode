@@ -19,10 +19,10 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
     - s5_compare_software.R: compare the performance of similar software (MISTy, NicheNet, CytoTalk) on breast cancer datasets, corresponding to Fig3B.
     - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig2B-F.
    - s7_get_cor.R: calculate the LR-target correlations,responding to Fig5 and FigS5.
-2. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
+2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig4B. <br>
+3. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig6B-C.
    - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig6D,F and FigS6,S7.
-3. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig4B. <br>
 4. **apply_in_scGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the scRNA-seq dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig7B-D.
    - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk) on gliomas datasets, corresponding to Fig7F.
