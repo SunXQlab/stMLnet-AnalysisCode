@@ -15,7 +15,8 @@ library(ggplot2)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_simu/")
+
+setwd("./stMLnet/apply_in_simu/")
 
 source('../code/code.R')
 
@@ -39,7 +40,6 @@ Sender = NULL
 
 for(sheetID in 1:100){
   
-  # sheetID = 1
   print(sheetID)
   
   input_ls <- prepare_input_data(sheetID = sheetID)
@@ -72,7 +72,6 @@ files <-list.files(wd)
 files <- files[grep('expo',files)]
 for(f in files){
   
-  # f = files[1]
   print(f)
   label <- gsub('(LRTG_score_)|(.rds)','',f)
   LRTG_allscore <- readRDS(paste0(wd,f))
@@ -155,7 +154,6 @@ files <-list.files(wd)
 files <- files[grep('mean',files)]
 for(f in files){
   
-  # f = files[1]
   print(f)
   label <- gsub('(LRTG_score_)|(.rds)','',f)
   LRTG_allscore <- readRDS(paste0(wd,f))
@@ -238,7 +236,6 @@ files <-list.files(wd)
 files <- files[grep('reci',files)]
 for(f in files){
   
-  # f = files[1]
   print(f)
   label <- gsub('(LRTG_score_)|(.rds)','',f)
   LRTG_allscore <- readRDS(paste0(wd,f))
