@@ -1,74 +1,3 @@
-##########
-## Note ##
-##########
-
-# 20211020
-# 修改 code 适应10XBC数据
-# 修改 calculate_LRTG_allscore 函数：
-## 1. 当length(sender)!=1时,LRTG_score计算参考sender=NULL
-## 2. 多个sender细胞对receiver细胞的影响
-
-# 20211027
-# 修改 calculate_LRTG_allscore函数：
-## 1. 当!is.null(Sender)时，根据Sender和Receiver对mulNetList取子集
-## 2. 当!is.null(Sender) & length(Sender)!=1时，原为根据Sender得到TME，计算TME->Receiver的LRTGscore。
-##    修改为分别计算Sender->Receiver的LRTGscore，最终返回列表。
-
-# 20211028
-# 增加 EdgeBundling Plot 相关函数：prepareEdgeBundlingPlotData + drawEdgeBundlingPlot
-
-# 20211029
-# 增加 Alluvium Plot 相关函数：prepareAlluviumPlotData + drawAlluviumPlot
-# 修改 get_downstream_MLnet 函数：
-## 1. 增加network size检查，避免因下游TG太多导致可视化效果不佳
-## 2. 函数名字改为prepareMLnetworkPlotData
-# 修改 DrawMLnet 函数：
-## 1. 函数名字改为drawMLnetworkPlot
-## 2. drawMLnetworkPlot_V2：优化网络节点坐标计算过程
-## 3. drawMLnetworkPlot_V3：利用ggraph包可视化
-
-# 20211030
-# 修改 drawMLnetworkPlot 函数
-## 1. drawMLnetworkPlot_V3：优化注释生成
-## 2. drawMLnetworkPlot_V3: 增加网络重复节点的检查(TG与Lig,Rec,TF之间的重复节点) ！！！！！！！
-
-# 20211031
-# 修改 drawEdgeBundlingPlot 函数：
-## 1. drawEdgeBundlingPlot_V2优化df_node生成：通过去除receptor的信息，删除冗余sender节点(eg. COL4A2_SDC1_Endothelial -> COL4A2_Endothelial)
-## 2. drawEdgeBundlingPlot_V2优化节点标签的位置，角度计算
-# 修改 drawEdgeBundlingPlot 函数：
-## 1. 修改图例位置，组合，方向
-## 2. 修改节点标签大小,图例
-## 3. 保存图片的大小
-
-# 20211103
-# 修改 calculate_LRTG_score 函数：
-## 1.删除LRpari数量过滤
-## 2.增加判断，当上游只有一个LRpair时的操作
-## 3.删除返回结果里的distMat
-## 4.保存修改为calculate_LRTG_score_V2 + calculate_LRTG_allscore_V2
-
-# 新增 calculate_LRTG_score_V3 函数：
-## 1.同_V2
-## 2.距离算法为expo
-
-# 新增 calculate_LRTG_score_V4 函数：
-## 1.同_V2
-## 2.距离算法为constant
-
-# 20211104
-# 修改 prepareMLnetworkPlotData 函数
-## 1.输入增加LRTG_pim,根据LRTG_pim对LR~TG进行筛选（sum(im)-top10），中间的TF不筛选
-## 2.保存修改为prepareMLnetworkPlotData_V2
-# 优化 drawMLnetworkPlot 函数
-## 1.优化修改坐标计算bug
-## 2.保存修改为drawMLnetworkPlot_V4
-
-# 20211107
-# 修改 prepareMLnetworkPlotData 函数
-## 1.根据LRTG_pim对TG进行筛选（sum(im)-top10），中间的TF不筛选
-## 2.保存修改为prepareMLnetworkPlotData_V3
-
 ################
 ## runscMLnet ##
 ################
@@ -321,7 +250,6 @@ getRecTF <- function(RecTF.DB, Rec.list, TF.list)
 ## getLRscore ##
 ################
 
-## 对表达谱进行填补
 run_Imputation <- function(exprMat, use.seed = TRUE, seed = 2021)
 {
   
@@ -335,15 +263,13 @@ run_Imputation <- function(exprMat, use.seed = TRUE, seed = 2021)
   
 }
 
-## 获取指定sender和Receiver的LRscore和TG表达量
-
+# The distance weights are the reciprocal function
 calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
                                  LRpairs, TGs, Receiver, Sender = NULL, 
                                  far.ct = 0.75, close.ct = 0.25, 
                                  downsample = FALSE)
 {
   
-  # 获取Sender和Receiver
   receBars = annoMat %>% dplyr::filter(Cluster == Receiver) %>% 
     dplyr::select(Barcode) %>% unlist() %>% as.character()
   if(is.character(Sender)){
@@ -354,7 +280,6 @@ calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
       dplyr::select(Barcode) %>% unlist() %>% as.character()
   }
   
-  # 获取Lig和Rec列表
   Receptors = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,2]})
   Ligands = lapply(LRpairs, function(lr){stringr::str_split(lr,"_",simplify = T)[,1]})
   
@@ -389,10 +314,8 @@ calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
   })
   names(RecMats) = TGs
   
-  # 获取距离矩阵
   distMat = distMat[sendBars, receBars]
   
-  # 获取细胞配对
   if(!is.null(group)){
     cpMat <- get_cell_pairs(group, distMat, far.ct, close.ct)
   }else{
@@ -400,10 +323,9 @@ calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
   }
   distMat = 1/distMat
   
-  # 获取LR打分矩阵
   t1 <- Sys.time(); message(paste0('Start at: ',as.character(t1)))
   LRs_score = lapply(TGs, function(tg){
-    # 对每个TG计算LRscore
+    
     # print(tg)
     LigMat = LigMats[[tg]]
     RecMat = RecMats[[tg]]
@@ -436,9 +358,8 @@ calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
   })
   names(LRs_score) = TGs
   t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
-  t2-t1 # 17 sec
+  t2-t1
   
-  # 获取Target表达谱
   if(is.null(cpMat)){
     
     TGs_expr = lapply(TGs, function(tg){ exprMat[tg, receBars] })
@@ -466,13 +387,13 @@ calculate_LRTG_score_V2 <- function(exprMat, distMat, annoMat, group = NULL,
     }
   }
   
-  # LR打分矩阵~靶基因表达量
   LRTG_score = list(LRs_score = LRs_score, TGs_expr = TGs_expr)
   
   return(LRTG_score)
   
 }
 
+# The distance weights are the exponential function
 calculate_LRTG_score_V3 <- function(exprMat, distMat, annoMat, group = NULL,
                                     LRpairs, TGs, Receiver, Sender = NULL, 
                                     far.ct = 0.75, close.ct = 0.25, 
@@ -555,7 +476,7 @@ calculate_LRTG_score_V3 <- function(exprMat, distMat, annoMat, group = NULL,
     }else{
       
       LR_score = lapply(unique(cpMat$Receiver), function(j){
-        # j = 'GATATTTCCTACATGG.1'
+
         is <- cpMat$Sender[cpMat$Receiver == j] %>% unique()
         RecMat[,j]*(LigMat[,is]%*%distMat[is,j])
       }) %>% do.call('rbind',.) 
@@ -568,7 +489,7 @@ calculate_LRTG_score_V3 <- function(exprMat, distMat, annoMat, group = NULL,
   })
   names(LRs_score) = TGs
   t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
-  t2-t1 # 17 sec
+  t2-t1 
   
   # get expression of each TG
   if(is.null(cpMat)){
@@ -604,6 +525,7 @@ calculate_LRTG_score_V3 <- function(exprMat, distMat, annoMat, group = NULL,
   
 }
 
+# The distance weights are the constant function
 calculate_LRTG_score_V4 <- function(exprMat, distMat, annoMat, group = NULL,
                                     LRpairs, TGs, Receiver, Sender = NULL, 
                                     far.ct = 0.75, close.ct = 0.25, 
@@ -685,7 +607,7 @@ calculate_LRTG_score_V4 <- function(exprMat, distMat, annoMat, group = NULL,
     }else{
       
       LR_score = lapply(unique(cpMat$Receiver), function(j){
-        # j = 'GATCCCTTTATACTGC.1'
+
         is <- cpMat$Sender[cpMat$Receiver == j] %>% unique()
         RecMat[,j]*(LigMat[,is]%*%distMat[is,])/length(is)
       }) %>% do.call('rbind',.) 
@@ -698,7 +620,7 @@ calculate_LRTG_score_V4 <- function(exprMat, distMat, annoMat, group = NULL,
   })
   names(LRs_score) = TGs
   t2 <- Sys.time(); message(paste0('End at: ',as.character(t2)))
-  t2-t1 # 17 sec
+  t2-t1 
   
   # get expression of each TG
   if(is.null(cpMat)){
@@ -735,8 +657,6 @@ calculate_LRTG_score_V4 <- function(exprMat, distMat, annoMat, group = NULL,
 }
 
 
-## 获取微环境细胞间的LRscore和TG表达量
-
 calculate_LRTG_allscore_V2 <- function(exprMat, distMat, annoMat, group = NULL,
                                     mulNetList, Receiver, Sender = NULL, 
                                     far.ct = 0.75, close.ct = 0.25,
@@ -763,7 +683,6 @@ calculate_LRTG_allscore_V2 <- function(exprMat, distMat, annoMat, group = NULL,
     LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
     TGs = names(LRpairs)
     
-    # cat("calculate the regulatory score of LR pairs from microenvironment")
     cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
     LRTG_allscore = calculate_LRTG_score_V2(exprMat, distMat, annoMat, group,
                                          LRpairs, TGs, Receiver, Sender, 
@@ -864,7 +783,6 @@ calculate_LRTG_allscore_V3 <- function(exprMat, distMat, annoMat, group = NULL,
     LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
     TGs = names(LRpairs)
     
-    # cat("calculate the regulatory score of LR pairs from microenvironment")
     cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
     LRTG_allscore = calculate_LRTG_score_V3(exprMat, distMat, annoMat, group,
                                             LRpairs, TGs, Receiver, Sender, 
@@ -965,7 +883,6 @@ calculate_LRTG_allscore_V4 <- function(exprMat, distMat, annoMat, group = NULL,
     LRpairs = lapply(LRpairs, function(lrtg){lrtg[!duplicated(lrtg)]})
     TGs = names(LRpairs)
     
-    # cat("calculate the regulatory score of LR pairs from microenvironment")
     cat(paste0("calculate the regulatory score of LR pairs from microenvironment to ",Receiver))
     LRTG_allscore = calculate_LRTG_score_V4(exprMat, distMat, annoMat, group,
                                             LRpairs, TGs, Receiver, Sender, 
@@ -1040,8 +957,6 @@ calculate_LRTG_allscore_V4 <- function(exprMat, distMat, annoMat, group = NULL,
   return(LRTG_allscore)
 }
 
-
-## 获取指定TG上游LRpair
 get_LRTG_link <- function(mulNet, TGs)
 {
   
@@ -1062,7 +977,6 @@ get_LRTG_link <- function(mulNet, TGs)
   return(LRTG_link)
 }
 
-## get_cell_pairs：获取与特定细胞类型的相近/相离的细胞配对
 get_cell_pairs <- function(group=NULL, distMat, far.ct = 0.75, close.ct = 0.25)
 {
   
@@ -1083,13 +997,11 @@ get_cell_pairs <- function(group=NULL, distMat, far.ct = 0.75, close.ct = 0.25)
   return(respon_cellpair)
 }
 
-## 求互信息
 getMI <- function(LRTG_score)
 {
   
   require(infotheo)
   
-  # 获取df_keys
   df_keys = data.frame(
     LRpair = lapply(LRTG_score$LRs_score, function(df){colnames(df)}) %>% unlist(),
     TG = lapply(1:length(LRTG_score$LRs_score), function(i){
@@ -1097,7 +1009,6 @@ getMI <- function(LRTG_score)
     }) %>% unlist()
   )
   
-  ## 计算相关性
   t1 <- Sys.time()
   df_mi <- lapply(1:nrow(df_keys), function(i){
     
@@ -1119,11 +1030,9 @@ getMI <- function(LRTG_score)
   
 }
 
-## 求相关性
 getPCC <- function(LRTG_score)
 {
   
-  # 获取df_keys
   df_keys = data.frame(
     LRpair = lapply(LRTG_score$LRs_score, function(df){colnames(df)}) %>% unlist(),
     TG = lapply(1:length(LRTG_score$LRs_score), function(i){
@@ -1131,7 +1040,6 @@ getPCC <- function(LRTG_score)
     }) %>% unlist()
   )
   
-  ## 计算相关性
   t1 <- Sys.time()
   df_cor <- lapply(1:nrow(df_keys), function(i){
     
@@ -1174,12 +1082,10 @@ get_pim_auto = function(trainx, trainy, ncores = 1, auto_para = TRUE,
   LRTab$Ligand = strsplit(LRpairs,"_") %>% do.call('rbind',.) %>% .[,1]
   LRTab$Receptor = strsplit(LRpairs,"_") %>% do.call('rbind',.) %>% .[,2]
   
-  # remove sample which TG expr = 0
   cat("\nRemove zero Target")
   zeroTarget = which(trainy==0)
   if(length(zeroTarget)>1) data = data[-zeroTarget,]
   
-  # remove LRpair which LRscore = 0
   cat("\nRemove zero LR")
   zeroLR = which(colSums(data[,-ncol(data)]==0)==nrow(data))
   zeroLR = c(zeroLR,which(is.na(colSums(data[,-ncol(data)]==0))))
@@ -1203,14 +1109,12 @@ get_pim_auto = function(trainx, trainy, ncores = 1, auto_para = TRUE,
   }
   if(auto_para == TRUE){
     
-    # parameters of automatic tuning parameter
     fitControl <- trainControl(
       method = "cv",
       number = 5,
       search = 'random',
       allowParallel = TRUE)
     
-    # model
     set.seed(2021)
     rfFit <- caret::train(Target ~ ., data = data, 
                           method = 'ranger', 
@@ -1225,7 +1129,6 @@ get_pim_auto = function(trainx, trainy, ncores = 1, auto_para = TRUE,
     
   }else{
     
-    # sel_mtry = floor(sqrt(ncol(trainx)))
     sel_mtry = n.trys
     sel_splitrule = tree.method
     sel_min.node.size = node.size
@@ -1587,17 +1490,12 @@ DrawCellComm <- function(CellTab,colodb,gtitle = 'TME')
 
 # MLnetPlot
 
-prepareMLnetworkPlotData_V3 <- function(
-  mlnet = NULL, # 画图依据
-  lrtg_im = NULL,  #过滤依据
+prepareMLnetworkPlotData <- function(
+  mlnet = NULL, 
+  lrtg_im = NULL, 
   Key,Type, do.check = FALSE
 )
 {
-  
-  # Key = 'IGF1'
-  # Type = 'Ligand'
-  # mlnet = MLnet
-  # lrtg_im = LRTG_im
   
   if(Type == 'Ligand'){
     
@@ -1634,11 +1532,10 @@ prepareMLnetworkPlotData_V3 <- function(
   return(mlnet_check)
 }
 
-drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
+drawMLnetworkPlot <- function(mlnet,downstream = c('TF','Target'),colodb,
                                  gtitle = 'TME',wd = './',p_height=4,p_width=6)
 {
   
-  # mlnet <- MLnet_key
   Ligs <- unique(mlnet$LigRec$source)
   Recs <- unique(mlnet$LigRec$target)
   TFs <- unique(mlnet$TFTar$source)
@@ -1704,11 +1601,9 @@ drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
     coords$dim_x[coords$type == 'Target'] = c(dim_x_1,dim_x_2) %>% scale(.,scale = F) %>% as.vector()
   }
   coords$dim_y <- lapply(coords$type,switch,'Ligand'=0.9,'Receptor'=0.6,'TF'=0.3,'Target'=0) %>% unlist()
-  # plot(subnet, layout = as.matrix(coords[,1:2]), vertex.color=df_nodes$color)
   
   layout <- create_layout(subnet, layout = 'tree')
   layout[,1:2] <- coords[,1:2]
-  # head(layout)
   
   temp <- function(key){
     
@@ -1726,20 +1621,16 @@ drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
     
   }
   
-  # windowsFonts(HEL=windowsFont("Helvetica CE 55 Roman"),
-  #              RMN=windowsFont("Times New Roman"),
-  #              ARL=windowsFont("Arial"))
-  
   pt <- ggraph(layout) +
     geom_edge_link(aes(),color="grey",
                    arrow = arrow(length = unit(1.5, 'mm')), 
                    start_cap = circle(3, 'mm'),
                    end_cap = circle(3, 'mm')) + 
     geom_node_point(aes(fill = key,color = key),shape=21,size = 8) +
-    geom_node_text(aes(label=name),size=2) + # ,fontface='bold',family='Arial'
+    geom_node_text(aes(label=name),size=2) +
     xlim(c(min(layout$x)-2,max(layout$x)+2)) +
     geom_text(data = df_anno, aes(x,y,label=lab,color=key),
-              vjust = 1, hjust = 0, size = 4,fontface='bold') + # ,family='ARL'
+              vjust = 1, hjust = 0, size = 4,fontface='bold') + 
     scale_fill_manual(values = colodb) + scale_color_manual(values = colodb) +
     guides(fill='none',color='none') +
     theme_graph()
@@ -1747,11 +1638,11 @@ drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
   
   ## save
   
-  pdf(paste0(wd,'MLnetPlot3-',gtitle,'.pdf'),height = p_height,width = p_width)
+  pdf(paste0(wd,'MLnetPlot-',gtitle,'.pdf'),height = p_height,width = p_width)
   print(pt)
   dev.off()
   
-  png(paste0(wd,'MLnetPlot3-',gtitle,'.png'),height = p_height,width = p_width, units = 'in', res = 300)
+  png(paste0(wd,'MLnetPlot-',gtitle,'.png'),height = p_height,width = p_width, units = 'in', res = 300)
   print(pt)
   dev.off()
   
@@ -1759,7 +1650,7 @@ drawMLnetworkPlot_V4 <- function(mlnet,downstream = c('TF','Target'),colodb,
 
 # EdgeBundlingPlot
 
-prepareEdgeBundlingPlotData_V2 <- function(df_LRTGscore, do.check = FALSE){
+prepareEdgeBundlingPlotData <- function(df_LRTGscore, do.check = FALSE){
   
   # edge
   df_LRTGscore$from = paste(df_LRTGscore$source,df_LRTGscore$source_group,sep = "_")
@@ -1842,8 +1733,8 @@ drawEdgeBundlingPlot <-function(df_input,colodb,gtitle = 'TME',wd = './', p_heig
   
   # graph
   
-  df_node <- df_input$df_node # node attr
-  df_hierarchy <- df_input$df_hierarchy # edge
+  df_node <- df_input$df_node
+  df_hierarchy <- df_input$df_hierarchy 
   mygraph <- graph_from_data_frame(df_hierarchy, vertices = df_node)
   
   node_color <- colodb[names(colodb) %in% unique(df_node$label)]
@@ -1855,29 +1746,20 @@ drawEdgeBundlingPlot <-function(df_input,colodb,gtitle = 'TME',wd = './', p_heig
   ## plot
   
   pt <- ggraph(mygraph, layout = 'dendrogram', circular = TRUE) + 
-    #alpha线的透明度，width线的宽度，tension是线的“密集”程度
     geom_conn_bundle(data = get_con(from = from, to = to), 
                      alpha=1, aes(colour=group, width=score),tension=0.5) +
-    # 设置边颜色
     scale_edge_color_manual(values = node_color,guide='none')+
-    # 设置边粗细
     scale_edge_width(range = c(0,1)) + 
-    # 设置节点标签，字体大小，文本注释信息
     geom_node_text(aes(x = x*1.15, y=y*1.15, filter = leaf, label=label,
                        angle = angle, hjust=hjust*0.5, colour=group), size=3, alpha=1, show.legend=F) +
-    # 设置节点的大小，颜色和透明度
     geom_node_point(aes(filter = leaf, x = x*1.07, y=y*1.07, 
                         colour=group, size=score, alpha=1)) +
-    # 设置节点颜色
     scale_colour_manual(values = node_color,name="celltype",
                         breaks=names(node_color)[!names(node_color) %in% c('cell','Sender','Receiver')],) +
-    # 设置节点大小的范围
     scale_size_continuous(range = c(1,5)) + theme_void() +
-    # 去除alpha图例
     scale_alpha(guide = 'none') +
     theme(
       legend.position = 'bottom',
-      # legend.direction = 'vertical',
       legend.box = 'vertical'
     ) 
   print(pt)
@@ -1898,16 +1780,15 @@ drawEdgeBundlingPlot <-function(df_input,colodb,gtitle = 'TME',wd = './', p_heig
 
 # AlluviumPlot
 
-prepareAlluviumPlotData_V2 <- function(
-  mlnet = NULL, # list of mlnet consisting of LigRec, RecTF, TFTar
-  lrtg_im = NULL, # replace of mlnet.list when using score
-  color.by = 'Nodekey', # color: Nodekey/Node/cellpair/Ligand/...
+prepareAlluviumPlotData <- function(
+  mlnet = NULL,
+  lrtg_im = NULL, 
+  color.by = 'Nodekey', 
   do.check = FALSE
 ){
   
   if(!is.null(mlnet)){
     
-    # mlnet = MLnet
     df_ligrec = data.frame(Ligand = mlnet$LigRec$source, Receptor = mlnet$LigRec$target) 
     df_rectf = data.frame(Receptor = mlnet$RecTF$source, TF = mlnet$RecTF$target)
     df_tftar = data.frame(TF = mlnet$TFTar$source, Target = mlnet$TFTar$target)
@@ -1922,7 +1803,6 @@ prepareAlluviumPlotData_V2 <- function(
     
   }else if(!is.null(lrtg_im)){
     
-    # lrtg_im = LRTG_im_merge
     df_lrtg_im = lrtg_im
     colnames(df_lrtg_im)[grep('im_norm',colnames(df_lrtg_im))] <- 'Score'
     df_lrtg_im$ID <- seq(nrow(df_lrtg_im))
@@ -1959,8 +1839,6 @@ prepareAlluviumPlotData_V2 <- function(
   df_plot_long <- reshape2::melt(df_plot, id = c('Score','ID','Sender'))
   colnames(df_plot_long) <- c("Score",'ID','Sender',"Nodekey","Node")
   
-  # df_plot_long$Score <- (df_plot_long$Score-min(df_plot_long$Score))/(max(df_plot_long$Score)-min(df_plot_long$Score))
-  
   if(color.by == 'Nodekey'){
     df_plot_long$color <- df_plot_long$Nodekey
   }else if(color.by == 'Node'){
@@ -1975,13 +1853,10 @@ prepareAlluviumPlotData_V2 <- function(
 
 drawAlluviumPlot <- function(
   dat, colodb, 
-  gtitle = 'groundtrue', # vector
+  gtitle = 'groundtrue', 
   wd = './visualize_CCI/AlluviumPlot/',
   p_height=9, p_width=18
 ){
-  
-  # dat <- df_plot_long
-  # dat <- df_MLnet_long_check
   
   pt_color <- colodb
   if(!any(unique(dat$color) %in% names(pt_color))){
@@ -2026,7 +1901,6 @@ drawAlluviumPlot <- function(
 Perf_ORA <- function(ls_tg,DB=c('GO','KEGG'))
 {
   
-  # ls_tg <- LRTG_pim$C5AR2$Target
   geneList <- ls_tg
   g2s <- toTable(org.Hs.egSYMBOL)
   geneList <- g2s$gene_id[match(geneList,g2s$symbol)]
@@ -2061,40 +1935,15 @@ Perf_ORA <- function(ls_tg,DB=c('GO','KEGG'))
   return(res_enrich)
 }
 
-Perf_GSEA <- function(df_tg,DB=c('KEGG','BIOCARTA'))
-{
-  
-  # df_tg <- LRTG_pim[[4]]
-  geneList <- df_tg$pIM
-  names(geneList) = df_tg$Target
-  geneList <- geneList[order(geneList, decreasing = T)]
-  
-  cp.gmt <- read.gmt("./vaild_scRNAseq/visualize_CCI/input/c2.cp.v7.4.symbols.gmt")
-  cp.gmt$database <- as.character(cp.gmt$term) %>% lapply(., function(term){strsplit(term,"_")[[1]][1]}) %>% unlist() 
-  cp.gmt.sel <- cp.gmt[cp.gmt$database == DB,]
-  
-  tryCatch(expr = {
-    res_gsea <- GSEA(geneList, TERM2GENE=cp.gmt.sel, minGSSize = 1, pvalueCutoff = 0.99, verbose=FALSE, seed = 1)
-  },error = function(e){
-    res_gsea <- NA
-  })
-  if(!exists('res_gsea')){
-    res_gsea <- NA
-  }
-  
-  return(res_gsea)
-}
 
-Perf_Enrich <- function(ls_im,Type=c('ORA','GSEA'),DB=c('GO','KEGG'))
+Perf_Enrich <- function(ls_im,Type=c('ORA'),DB=c('GO','KEGG'))
 {
   
-  # ls_im <- LRTG_im_spl
   Recs <- names(ls_im)
   if(Type == 'ORA'){
     
     res_enrich <- lapply(1:length(Recs), function(i){
       
-      # rec <- 'ACVR2A'
       print(paste0(i,"/",length(Recs)))
       tgs <- ls_im[[i]]$Target
       
@@ -2113,16 +1962,7 @@ Perf_Enrich <- function(ls_im,Type=c('ORA','GSEA'),DB=c('GO','KEGG'))
     
   }else{
     
-    res_enrich <- lapply(1:length(Recs), function(i){
-      
-      # i=4
-      print(paste0(i,"/",length(Recs)))
-      df_tg <- ls_im[[i]]
-      
-      res_GSEA <- Perf_GSEA(df_tg,DB=DB)
-      
-    })
-    names(res_enrich) <- Recs
+    res_enrich <- NA
     
   }
   
@@ -2141,8 +1981,6 @@ decompose_doublet_fast <- function(barcode){
   type1 = results$results_df[barcode, "first_type"]
   type2 = results$results_df[barcode, "second_type"]
   weights = results$weights_doublet[barcode, ]
-  # counts <- as.matrix(myRCTD@spatialRNA@counts)
-  # bead = counts[gene_list, barcode]
   bead = myRCTD@spatialRNA@counts[gene_list, barcode]
   N_genes = length(gene_list)
   epsilon = 1e-10
