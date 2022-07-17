@@ -13,21 +13,10 @@ library(doSNOW)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_scGBM/")
+
+setwd("./stMLnet/apply_in_scGBM/")
 
 source('../code/code.R')
-
-##########
-## Note ##
-##########
-
-## run in centos
-## use 30~50 cores
-## parallel in FORK
-## about 1~3h/mission
-
-## too much TGs of scRNAseq data
-## split data into two part
 
 ##########
 ## main ##
@@ -39,8 +28,8 @@ for(f in  files){
   message(f)
   message(paste0('Start at ',as.character(Sys.time())))
   
-  label <- gsub("LRTGscore_TC_TAM_euc_|.rds","",f)
-  LRTG_allscore <- readRDS(paste0("./runModel/DEGs_from_bulk/",f))
+  label <- gsub("LRTG_allscore_|.rds","",f)
+  LRTG_allscore <- readRDS(paste0("./runModel/",f))
   num_of_LRs <- lapply(LRTG_allscore$LRs_score, ncol) %>% unlist()
   
   index1 <- names(num_of_LRs)[num_of_LRs<=150]
@@ -69,9 +58,8 @@ for(f in  files){
   stopCluster(cl)
   gc()
   t2 <- Sys.time()
-  t2-t1 # 15 mins
+  t2-t1
   
-  # 整理
   df_im = lapply(seq(n.TG), function(i){
     
     res = res_ls[[i]]
@@ -154,7 +142,6 @@ for(f in  files){
   t2 <- Sys.time()
   t2-t1
   
-  # 整理
   df_im = lapply(seq(n.TG), function(i){
     
     res = res_ls[[i]]
@@ -211,7 +198,6 @@ for(f in  files){
   df_pim = na.omit(df_pim)
   saveRDS(df_pim, paste0('./getPIM/LRTG_pim_clean_',label,'_p2.rds'))
   
-  # 合并
   df_im1 <- readRDS(paste0('./getPIM/LRTG_im_clean_',label,'_p1.rds'))
   df_im2 <- readRDS(paste0('./getPIM/LRTG_im_clean_',label,'_p2.rds'))
   df_pim1 <- readRDS(paste0('./getPIM/LRTG_pim_clean_',label,'_p1.rds'))
@@ -228,7 +214,6 @@ for(f in  files){
   
   message(paste0('End at ',as.character(Sys.time())))
   message('####################################################')
-  rstudioapi::restartSession()
   
 }
 

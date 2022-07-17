@@ -10,7 +10,7 @@ library(ggsci)
 rm(list = ls())
 gc()
 
-setwd('E:/stMLnet/apply_in_scGBM/')
+setwd('./stMLnet/apply_in_scGBM/')
 
 source('../code/code.R')
 
@@ -30,8 +30,8 @@ scales::show_col(mycolor_software)
 ##########
 
 ## groundtrue
-degs_files <- "F:/finalVersion/vaild_scRNAseq/2016_science_bulk/output/DEGs_from_wilcox-cpm"
-degs_file <- readRDS(paste(degs_files,'TGs_list_wilcox-cpm_logfc2_pval0.1.rds',sep = "/"))
+degs_files <- "./data/2016Science/TGs_list.rds"
+degs_file <- readRDS(degs_files)
 degs <- degs_file$VehEP_TAM$degs
 
 ## stMLnet
@@ -40,12 +40,12 @@ stmlnet_score <- readRDS(stml_file)
 stmlnet_score <- stmlnet_score %>% filter(regulator == 'CSF1R' & type == 'Receptor') %>% na.omit()
 
 ## NicheNet
-nich_file <- 'E:/stMLnet/other_method/NicheNet/scGBM/result/macrophages_LRpair_weight.rds'
+nich_file <- '../other_method/NicheNet/scGBM/result/macrophages_LRpair_weight.rds'
 nichenet_score <- readRDS(nich_file)
 nichenet_score <- nichenet_score[which(nichenet_score$ligand=='CSF1'),] %>% na.omit()
 
 ## CytoTalk
-cyto_file <- 'E:/stMLnet/other_method/CytoTalk/scGBM/result/macrophages_LRpair_distance.rds'
+cyto_file <- '../other_method/CytoTalk/scGBM/result/macrophages_LRpair_distance.rds'
 cytotalk_score <- readRDS(cyto_file)
 cytotalk_score$from <- as.vector(cytotalk_score$from)
 cytotalk_score <- cytotalk_score[cytotalk_score$from == 'Csf1r' & cytotalk_score$from_type == 'Receptor',]

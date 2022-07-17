@@ -11,7 +11,7 @@ library(ggsci)
 rm(list = ls())
 gc()
 
-setwd('E:/stMLnet/apply_in_scGBM/')
+setwd('./stMLnet/apply_in_scGBM/')
 
 ###########
 ## color ##
@@ -39,7 +39,6 @@ runGSEA <- function(tgList){
   geneset <- read.gmt(gmtfile)
   geneset$term <- geneset$term %>% tolower()
   length(unique(geneset$term))
-  # 7481 genesets
   
   ## RUN ############
   
@@ -55,7 +54,7 @@ runGSEA <- function(tgList){
 
 ## get logfc ####
 
-seur <- readRDS("./vaild_scRNAseq/2019_cell_scRNAseq/result/seur.rds")
+seur <- readRDS("./input/seur.rds")
 DefaultAssay(seur) <- 'alra'
 
 clusters <- seur@active.ident %>% as.character() %>% unique()
@@ -87,11 +86,11 @@ hit_terms <- result_go_logfc$ID %>% gsub('_',' ',.)
 hit_terms[grep("myeloid|macro",hit_terms,ignore.case = T)]
 
 hits <- result_go_logfc$ID[grep("myeloid|macro",result_go_logfc$ID,ignore.case = T)]
-pdf("./visualize_CCI/gsea_go_logfc_tam_pval0.01.pdf", width = 18, height = 12)
+pdf("./visualize_CCI/gsea_go_logfc_tam.pdf", width = 18, height = 12)
 gseaplot2(res_go_logfc, geneSetID = hits, pvalue_table = T, base_size = 18, color = mycols[1:length(hits)])
 dev.off()
 
-png("./visualize_CCI/gsea_go_logfc_tam_pval0.01.png", width = 18, height = 12,units = 'in',res = 300)
+png("./visualize_CCI/gsea_go_logfc_tam.png", width = 18, height = 12,units = 'in',res = 300)
 gseaplot2(res_go_logfc, geneSetID = hits, pvalue_table = T, base_size = 18, color = mycols[1:length(hits)])
 dev.off()
 
@@ -101,7 +100,7 @@ dev.off()
 
 ## get logfc ####
 
-seur <- readRDS("./vaild_scRNAseq/2019_cell_scRNAseq/result/seur.rds")
+seur <- readRDS("./input/seur.rds")
 DefaultAssay(seur) <- 'alra'
 
 clusters <- seur@active.ident %>% as.character() %>% unique()
@@ -134,10 +133,10 @@ hit_terms <- result_go_logfc$ID %>% gsub('_',' ',.)
 hit_terms[grep("neuron|vascu",hit_terms,ignore.case = T)] 
 
 hits <- result_go_logfc$ID[grep("neuron|vascu",result_go_logfc$ID,ignore.case = T)][c(1,2,5,7)]
-pdf("./visualize_CCI/gsea_go_logfc_tc_pval0.01.pdf", width = 18, height = 12)
+pdf("./visualize_CCI/gsea_go_logfc_tc.pdf", width = 18, height = 12)
 gseaplot2(res_go_logfc, geneSetID = hits, pvalue_table = T, base_size = 18, color = mycols[1:length(hits)])
 dev.off()
 
-png("./visualize_CCI/gsea_go_logfc_tc_pval0.01.png", width = 18, height = 12, units = 'in', res=300)
+png("./visualize_CCI/gsea_go_logfc_tc.png", width = 18, height = 12, units = 'in', res=300)
 gseaplot2(res_go_logfc, geneSetID = hits, pvalue_table = T, base_size = 18, color = mycols[1:length(hits)])
 dev.off()

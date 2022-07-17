@@ -7,7 +7,8 @@ library(Seurat)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_scGBM/")
+
+setwd("./stMLnet/apply_in_scGBM/")
 
 source('../code/code.R')
 

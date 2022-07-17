@@ -8,7 +8,8 @@ library(SeuratWrappers)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_scGBM/")
+
+setwd("./stMLnet/apply_in_scGBM/")
 
 source('../code/code.R')
 
@@ -16,11 +17,10 @@ source('../code/code.R')
 ## load ##
 ##########
 
-seur <- readRDS("F:/finalVersion/vaild_scRNAseq/2019_cell_scRNAseq/result/seur.rds")
-annoMat <- data.frame(Barcode = rownames(seur@meta.data),
-                      Cluster = seur$orig.annotation)
-distMat <- readRDS("F:/finalVersion/vaild_scRNAseq/input/euclidean_distMat_hvg_alra.rds")
-exprMat.Impu <- seur@assays$alra@data
+load("./input/input.rda")
+annoMat[1:4,1:4]
+distMat[1:4,1:4]
+exprMat.Impu[1:4,1:4]
 
 ##################
 ## TEM-Receiver ##
