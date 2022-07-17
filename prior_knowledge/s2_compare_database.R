@@ -2,9 +2,6 @@
 ## library ##
 #############
 
-# Compare resource of stMLnet, NicheNet and  Omnipath
-
-## We first load the required libraries to run this script
 library(OmnipathR)
 library(dplyr)
 library(readr)
@@ -16,7 +13,7 @@ library(ggsci)
 rm(list = ls())
 gc()
 
-setwd("E:/stMLnet/prior_knowledge/")
+setwd("./stMLnet/prior_knowledge/")
 
 ###########
 ## color ##

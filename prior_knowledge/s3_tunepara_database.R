@@ -12,13 +12,12 @@ library(doSNOW)
 rm(list = ls())
 gc()
 
-setwd("E:/stMLnet/prior_knowledge/")
+setwd("./stMLnet/prior_knowledge/")
 
 ##############
 ## function ##
 ##############
 
-## RWR算法
 doRWR <- function(mygraph, restart=0.75, 
                   mode = c('directed','undirected'), 
                   normalise.affM = c("none","quantile"),
@@ -31,7 +30,6 @@ doRWR <- function(mygraph, restart=0.75,
   ## A function to make sure the sum of elements in each steady probability vector is one
   sum2one <- function(PTmatrix){
     col_sum <- apply(PTmatrix, 2, sum)
-    #col_sum <- Matrix::colSums(PTmatrix, sparseResult=F)
     col_sum_matrix <- matrix(rep(col_sum, nrow(PTmatrix)), ncol=ncol(PTmatrix), nrow=nrow(PTmatrix), byrow =T)
     res <- as.matrix(PTmatrix)/col_sum_matrix
     res[is.na(res)] <- 0
@@ -124,7 +122,7 @@ doRWR <- function(mygraph, restart=0.75,
   }
   
   if(is.null(setSeeds)){
-    Seeds <- V(mygraph)$name ## 每组seeds包括至少一个节点, 默认所有节点
+    Seeds <- V(mygraph)$name 
   }else{
     
     ## check mapping between input and graph
@@ -169,7 +167,6 @@ doRWR <- function(mygraph, restart=0.75,
     }
   }
   
-  ## should keep seed in row（row->col） 
   if(SeedInRow){
     
     PTmatrix <- t(PTmatrix)
@@ -200,16 +197,15 @@ doRWR <- function(mygraph, restart=0.75,
   invisible(PTmatrix)
 }
 
-## 划分数据集
 splitData <- function(data, k=3){
   
   getCVgroup <- function(data,k=3){
     cvlist <- list()
     datasize <- nrow(data)
-    n <- rep(1:k,ceiling(datasize/k))[1:datasize]    #将数据分成K份，并生成的完成数据集n
-    temp <- sample(n,datasize)   #把n打乱
+    n <- rep(1:k,ceiling(datasize/k))[1:datasize]   
+    temp <- sample(n,datasize)
     dataseq <- 1:datasize
-    cvlist <- lapply(1:k,function(x) dataseq[temp==x])  #dataseq中随机生成k个随机有序数据列
+    cvlist <- lapply(1:k,function(x) dataseq[temp==x])  
     return(cvlist)
   }
   cvlist <- getCVgroup(data)
@@ -230,7 +226,6 @@ splitData <- function(data, k=3){
   
 }
 
-## 构建图
 buildNet <- function(datas, mode = c('directed','undirected'), 
                      weight = c('weighted','unweighted'), 
                      train.model = FALSE, verbose=TRUE){	
@@ -303,14 +298,10 @@ buildNet <- function(datas, mode = c('directed','undirected'),
   
   if(weight == "unweighted"){
     
-    # directed: The graph will be directed and a matrix element gives the number of edges between two vertices.
-    # undirected: This is exactly the same as max, for convenience. Note that it is not checked whether the matrix is symmetric.
-    net <- igraph::graph_from_adjacency_matrix(adjM, mode=mode, weighted=NULL)
+     net <- igraph::graph_from_adjacency_matrix(adjM, mode=mode, weighted=NULL)
     
   }else{
     
-    # directed: The graph will be directed and a matrix element gives the edge weights.
-    # undirected: First we check that the matrix is symmetric. It is an error if not. Then only the upper triangle is used to create a weighted undirected graph.
     net <- igraph::graph_from_adjacency_matrix(adjM, mode=mode, weighted=TRUE)
     
   }
@@ -521,7 +512,7 @@ saveRDS(df_metrics_st, "./RWR/df_metrics_st.rds")
 
 ## load Omnipath database
 
-hm.omni <- readRDS(file = "E:/stMLnet/other_method/Omnipath/cleaned_data/RecTF_from_interactions.rds")
+hm.omni <- readRDS(file = "../other_method/Omnipath/cleaned_data/RecTF_from_interactions.rds")
 RecTF_from_Omnipath <- hm.omni %>% filter(weight > 0)
 data_from_Omnipath <- RecTF_from_Omnipath %>% as.data.frame()
 
@@ -578,7 +569,7 @@ progress <- function(n) setTxtProgressBar(pb, n)
 opts <- list(progress=progress)
 res_Omnipath_RWR <- foreach(i=1:n.iter, .packages=c("dplyr","igraph"), 
                             .options.snow=opts, .errorhandling = "pass"
-) %dopar% mod(i) # 27.8826 mins
+) %dopar% mod(i) 
 close(pb)
 stopCluster(cl)
 t2 <- Sys.time()
@@ -610,7 +601,7 @@ saveRDS(df_metrics_om, "./RWR/df_metrics_om.rds")
 
 ## load NicheNet database
 
-load("E:/stMLnet/other_method/NicheNet/data/nichenet.human.ppi.rda")
+load("../other_method/NicheNet/data/nichenet.human.ppi.rda")
 hm.ppi.Unique <- hm.ppi %>% dplyr::distinct(source, target)
 
 RecTF_from_NicheNet <- hm.ppi
@@ -633,7 +624,6 @@ mod_new <- function(i) {
   ds=gs2$ds[i]
   
   g <- netlist[[ds]]
-  # SeedInRow设置为FALSE，避免矩阵转置时内存不足
   AffM <- doRWR(g, restart=r, setSeeds=NULL, verbose=F, SeedInRow = FALSE)
   
   results <- list(dataset = ds, 
@@ -652,7 +642,6 @@ eva_new1 <- function(i){
   
   AUClist <- lapply(1:length(AffMlist), function(i){
     evaluateAUC(AffMlist[[i]]$AffM, datalist[[i]], FromInRow = FALSE)
-    # FromInRow设置为FALSE，与上面保持一致，避免矩阵转置时内存不足
   }) %>% unlist()
   AUClist <- list(mean_AUC = mean(AUClist), AUC = AUClist)
   
@@ -672,7 +661,6 @@ eva_new2 <- function(i){
   
   Precisionlist <- lapply(1:length(AffMlist), function(i){
     evaluatePrecision(AffMlist[[i]]$AffM, datalist[[i]], FromInRow = FALSE)
-    # FromInRow设置为FALSE，与上面保持一致，避免矩阵转置时内存不足
   }) %>% unlist()
   Precisionlist <- list(mean_Precision = mean(Precisionlist), Precision = Precisionlist)
   
@@ -718,7 +706,6 @@ if(T){
   t2 <- Sys.time()
   message('End at ',as.character(t2))
   t2-t1
-  # 260G
   
   ## get AUC
   
@@ -743,7 +730,7 @@ if(T){
   stopCluster(cl)
   t2 <- Sys.time()
   message("End at ",as.character(t2))
-  t2-t1 # 52.79 mins
+  t2-t1 
   
   saveRDS(res_NicheNet_RWR_1, "./RWR/res_NicheNet_RWR_1.rds")
   
@@ -771,7 +758,7 @@ if(T){
   stopCluster(cl)
   t2 <- Sys.time()
   message("End at ",as.character(t2))
-  t2-t1 # 5.45 hours
+  t2-t1 
   
   saveRDS(res_NicheNet_RWR_2, "./RWR/res_NicheNet_RWR_2.rds") 
   gc()
@@ -792,7 +779,6 @@ if(T){
     
     AUClist <- lapply(1:length(AffMlist), function(i){
       evaluateAUC(AffMlist[[i]]$AffM, datalist[[i]], FromInRow = FALSE)
-      # FromInRow设置为FALSE，与上面保持一致，避免矩阵转置时内存不足
     }) %>% unlist()
     AUClist <- list(mean_AUC = mean(AUClist), AUC = AUClist)
     
@@ -812,7 +798,6 @@ if(T){
     
     Precisionlist <- lapply(1:length(AffMlist), function(i){
       evaluatePrecision(AffMlist[[i]]$AffM, datalist[[i]], FromInRow = FALSE)
-      # FromInRow设置为FALSE，与上面保持一致，避免矩阵转置时内存不足
     }) %>% unlist()
     Precisionlist <- list(mean_Precision = mean(Precisionlist), Precision = Precisionlist)
     
@@ -846,7 +831,7 @@ if(T){
   gc()
   t2 <- Sys.time()
   message("End at ",as.character(t2))
-  t2-t1 #  1.39 days
+  t2-t1
   
   ## get AUC
   
@@ -872,7 +857,7 @@ if(T){
   gc()
   t2 <- Sys.time()
   message("End at ",as.character(t2))
-  t2-t1 # 21.89 mins
+  t2-t1
   
   saveRDS(res_NicheNet_RWR2_1, "./RWR/res_NicheNet_RWR2_1.rds")
   
@@ -901,7 +886,7 @@ if(T){
   gc()
   t2 <- Sys.time()
   message("End at ",as.character(t2))
-  t2-t1 # 2.91 hours
+  t2-t1 
   
   saveRDS(res_NicheNet_RWR2_2, "./RWR/res_NicheNet_RWR2_2.rds") 
   gc()

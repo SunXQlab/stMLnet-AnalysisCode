@@ -14,14 +14,14 @@ library(VennDiagram)
 library(ggplot2)
 library(RColorBrewer)
 
-library(graphite) #October 27, 2020
+library(graphite) 
 library(doParallel)
 library(foreach)
 
 rm(list = ls())
 gc()
 
-setwd("E:/stMLnet/prior_knowledge/")
+setwd("./stMLnet/prior_knowledge/")
 
 ##############
 ## LigRecDB ##
@@ -30,8 +30,6 @@ setwd("E:/stMLnet/prior_knowledge/")
 ## CellChat ####
 
 if(F){
-  
-  ## 下载原始数据
   
   # download.file(url = 'https://github.com/sqjin/CellChat/raw/master/data/CellChatDB.human.rda',
   #               destfile = './LigRec/human_CellChatDB.rda', method = 'internal')
@@ -42,7 +40,6 @@ if(F){
   hm.cc.cofactor <- CellChatDB.human$cofactor
   hm.cc.geneInfo <- CellChatDB.human$geneInfo
   
-  ## 处理复合物信息
   
   hm.cc.complex$combine <- apply(hm.cc.complex,1,function(x){
     x = x[nchar(x)!=0]
@@ -62,14 +59,10 @@ if(F){
   hm.cc <- hm.cc %>% mutate(receptor = strsplit(as.character(receptor), "_")) %>% unnest(receptor)
   hm.cc <- hm.cc[!duplicated(hm.cc[,1:2]),]
   
-  ## 整理
-  
   hm.cc <- hm.cc %>% mutate(primary.source = rep("CellChat",nrow(hm.cc))) %>% 
     mutate(secondary.source = evidence) %>%
     dplyr::select(source = ligand, target = receptor, 
                   primary.source, secondary.source, note = evidence)
-  
-  ## 统一数据来源
   
   ### KEGG > PMID/PMC
   sort(unique(hm.cc$secondary.source))
@@ -80,8 +73,6 @@ if(F){
   unique(hm.cc$secondary.source[grep('PMID|PMC',hm.cc$secondary.source,ignore.case = T)])
   hm.cc$secondary.source[grep('PMID|PMC',hm.cc$secondary.source,ignore.case = T)] <- 'PMID'
   
-  ## 过滤非symobol
-  
   g2s <- toTable(org.Hs.egSYMBOL)
   filter_source <- hm.cc$source[!hm.cc$source%in%g2s$symbol]
   filter_target <- hm.cc$target[!hm.cc$target%in%g2s$symbol]
@@ -91,13 +82,10 @@ if(F){
   filter_interaction <- hm.cc[filter_interaction_id,]
   hm.cc <- hm.cc[-na.omit(filter_interaction_id),]
   
-  ## 检查
-  
   unique(hm.cc$source)
   unique(hm.cc$target)
   table(!duplicated(hm.cc[,1:2]))
-  
-  ## 保存
+
   saveRDS(hm.cc, "./output/hm.LigRec.cc.rds")
   
 }
@@ -108,7 +96,6 @@ hm.cc <- readRDS("./output/hm.LigRec.cc.rds")
 
 if(F){
   
-  ## 下载 
   
   # download.file(url = 'https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-18873-z/MediaObjects/41467_2020_18873_MOESM4_ESM.xlsx',
   #               destfile = './LigRec/human_mouse_connectomeDB2020.xlsx', method = 'wininet')
@@ -117,15 +104,11 @@ if(F){
   hm.connectomeDB <- hm.connectomeDB[,c(2,3,4,7)]
   hm.connectomeDB <- hm.connectomeDB[!duplicated(hm.connectomeDB[,3:4]),]
   
-  ## 整理
-  
   hm.cn <- hm.connectomeDB %>% 
     mutate(primary.source = rep("connectomeDB2020",nrow(hm.connectomeDB))) %>%
     dplyr::select(source = Ligand.gene.symbol, target = Receptor.gene.symbol,
                   primary.source, secondary.source = Source, note = PMID.support) %>%
     as_tibble()
-  
-  ## 统一数据来源
   
   hm.cn$secondary.source[grep('Ramilowski_2015',hm.cn$secondary.source)] <- "Ramilowski_2015"
   hm.cn$secondary.source[grep('Hou et al. 2020',hm.cn$secondary.source)] <- "Hou_2020"
@@ -137,14 +120,11 @@ if(F){
   hm.cn$note <- paste0('PMID:',hm.cn$note)
   table(hm.cn$secondary.source)
   
-  ## 检查
-  
   unique(hm.cn$source)
   hm.cn$source <- as.character(hm.cn$source)
   unique(hm.cn$target)
   hm.cn$target <- as.character(hm.cn$target)
   
-  ## 保存
   saveRDS(hm.cn, "./output/hm.LigRec.cn.rds")
 }
 
@@ -154,17 +134,12 @@ hm.cn <- readRDS("./output/hm.LigRec.cn.rds")
 
 if(F){
   
-  ## 下载
-  
   # download.file(url = 'https://github.com/Coolgenome/iTALK/blob/master/data/LR_database.rda',
   #               destfile = './LigRec/human_mouse_iTALK.rda', method = 'internal')
   load("./LigRec/human_mouse_iTALK.rda")
   
-  # ECRF3, US28, UL12, E1, KSHV
   database <- na.omit(database)
   database <- database[!duplicated(database[,c(2,4)]),]
-  
-  ## 整理
   
   hm.it <- tibble(database)
   hm.it <- hm.it[,c(1,2,4,6)]
@@ -174,15 +149,11 @@ if(F){
                   target = Receptor.ApprovedSymbol, 
                   primary.source, secondary.source, note = Classification)
   
-  ## 过滤
-  
   hm.cn.exc <- xlsx::read.xlsx("./LigRec/human_mouse_connectomeDB2020.xlsx", sheetName = 'excluded pairs')
   hm.cn.exc <- hm.cn.exc[hm.cn.exc$Primary.source == 'Ramilowski_2015',]
   hm.cn.exc.key <- paste(hm.cn.exc$Ligand.Approved.Symbol,hm.cn.exc$Receptor.Approved.Symbol,sep = "_")
   hm.it <- hm.it[!hm.it$key %in% hm.cn.exc.key,]
   table(!duplicated(hm.it$key))
-  
-  ## 检查
   
   head(hm.it)
   unique(hm.it$source)
@@ -191,7 +162,6 @@ if(F){
   hm.it$target <- as.character(hm.it$target)
   hm.it <- hm.it[,-1]
   
-  ## 保存
   saveRDS(hm.it, "./output/hm.LigRec.it.rds")
   
 }
@@ -202,13 +172,9 @@ hm.it <- readRDS("./output/hm.LigRec.it.rds")
 
 if(F){
   
-  ## 下载
-  
   # download.file(url = 'https://github.com/saeyslab/nichenetr/blob/master/data/lr_network.rda',
   #               destfile = './LigRec/human_mouse_NicheNet_lr_network.rda', method = 'wininet')
   load("./LigRec/human_mouse_NicheNet_lr_network.rda")
-  
-  ## 整理
   
   hm.nn <- lr_network
   table(hm.nn$database)
@@ -219,13 +185,9 @@ if(F){
     dplyr::select(key, source = from, target = to, 
                   primary.source, secondary.source = database, note = source)
   
-  ## 过滤
-  
   table(hm.nn$secondary.source)
   hm.nn <- hm.nn %>% filter(secondary.source != 'ppi_prediction') %>% 
     filter(secondary.source != 'ppi_prediction_go')
-  
-  ## 统一数据来源
   
   sort(unique(hm.nn$secondary.source))
   ### kegg -> KEGG
@@ -238,23 +200,17 @@ if(F){
   unique(hm.nn$secondary.source[grep('guide2pharmacology',hm.nn$secondary.source,ignore.case = T)])
   hm.nn$secondary.source[grep('guide2pharmacology',hm.nn$secondary.source,ignore.case = T)] <- 'Guide2PHARMACOLOGY'
   
-  ## 过滤
-  
   hm.cn.exc <- xlsx::read.xlsx("./LigRec/human_mouse_connectomeDB2020.xlsx", sheetName = 'excluded pairs')
   hm.cn.exc <- hm.cn.exc[hm.cn.exc$Primary.source == 'Ramilowski_2015',]
   hm.cn.exc.key <- paste(hm.cn.exc$Ligand.Approved.Symbol,hm.cn.exc$Receptor.Approved.Symbol,sep = "_")
   hm.nn <- hm.nn[!(hm.nn$key %in% hm.cn.exc.key & hm.nn$secondary.source == 'Ramilowski_2015'),]
   table(!duplicated(hm.nn$key))
   
-  ## 检查
-  
   head(hm.nn)
   unique(hm.nn$source)
   unique(hm.nn$target)
   unique(hm.nn$secondary.source)
   hm.nn <- hm.nn[,-1]
-  
-  ## 保存
 
   saveRDS(hm.nn, "./output/hm.LigRec.nn.rds")
   
@@ -267,7 +223,6 @@ hm.nn <- readRDS("./output/hm.LigRec.nn.rds")
 hm.LigRec <- do.call('rbind', list(hm.LigRec.cn, hm.LigRec.it, hm.LigRec.nn, hm.LigRec.cc))
 save(hm.LigRec, file = "./output/scMLnet.human.LigRec.rda")
 
-## 可视化
 
 if(T){
   
@@ -512,7 +467,6 @@ if(F){
   
   table(hm.gd$source) %>% .[order(.)]
   hm.gd.tf[grep('^T$',hm.gd.tf$symbol),]
-  ### GTRD:O15178 symbol:TBXT Ensembl_id:ENSG00000164458
   hm.gd$source[grep('^T$',hm.gd$source)] <- 'TBXT'
   
   hm.gd$key <- paste(hm.gd$source, hm.gd$target, sep = "_")
@@ -534,8 +488,6 @@ table(filter_TFTG)
 hm.TFTG <- hm.TFTG[!filter_TFTG,]
 
 save(hm.TFTG, file = "./output/scMLnet.human.TFTG.rda")
-
-## 可视化
 
 if(T){
   
@@ -631,16 +583,12 @@ if(T){
 
 if(F){
   
-  ## 下载
-  
   pathwayDatabases()
   human.dbs <- pathwayDatabases() %>% 
     dplyr::filter(species == "hsapiens") %>% 
     dplyr::select(database) %>% unlist()
-  
-  ## 整理
-  
-  # options(Ncpus = 4)
+
+  options(Ncpus = 4)
   hm.dbs <- lapply(human.dbs, function(h.db){
     
     # h.db <- human.dbs[1]
@@ -720,7 +668,6 @@ if(F){
   
 }
 
-## 可视化 ####
 
 if(F){
   

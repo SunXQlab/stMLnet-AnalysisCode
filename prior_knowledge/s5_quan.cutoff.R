@@ -10,7 +10,7 @@ library(doParallel)
 rm(list = ls())
 gc()
 
-setwd("E:/stMLnet/prior_knowledge/")
+setwd("./stMLnet/prior_knowledge/")
 
 ###########
 ## input ##
@@ -39,22 +39,22 @@ dim(pkTFTG)
 
 ## Ligand
 
-clLigTG <- data.table::fread("./cellLine/clean/result/hm_CL_LigTG.csv", header = T, sep = ",", data.table = F)
+clLigTG <- data.table::fread("../cellLine/clean/result/hm_CL_LigTG.csv", header = T, sep = ",", data.table = F)
 rownames(clLigTG) <- clLigTG[,1]
 clLigTG <- clLigTG[,-1]
 dim(clLigTG)
 
-res.ligs <- readRDS(file = "./cellLine/clean/result/res.ligs.rds")
+res.ligs <- readRDS(file = "../cellLine/clean/result/res.ligs.rds")
 lengths(res.ligs)
 
 ## Receptor
 
-clRecTG <- data.table::fread("./cellLine/clean/result/hm_CL_RecTG.csv", header = T, sep = ",", data.table = F)
+clRecTG <- data.table::fread("../cellLine/clean/result/hm_CL_RecTG.csv", header = T, sep = ",", data.table = F)
 rownames(clRecTG) <- clRecTG[,1]
 clRecTG <- clRecTG[,-1]
 dim(clRecTG)
 
-res.recs <- readRDS(file = "./cellLine/clean/result/res.recs.rds")
+res.recs <- readRDS(file = "../cellLine/clean/result/res.recs.rds")
 lengths(res.recs)
 
 ## filter
@@ -71,7 +71,7 @@ rownames(clRecTG)[rownames(clRecTG)=='IGFR1'] <- 'IGF1R'
 
 ## save ####
 
-save.image("./prior_knowledge/quan.ct/tunePara_input.RData")
+save.image("./quan.ct/tunePara_input.RData")
 
 ##########
 ## load ##
@@ -79,7 +79,7 @@ save.image("./prior_knowledge/quan.ct/tunePara_input.RData")
 
 rm(list = ls())
 gc()
-load("./prior_knowledge/quan.ct/tunePara_input.RData")
+load("./quan.ct/tunePara_input.RData")
 
 ##############
 ## tunePara ##
@@ -102,7 +102,6 @@ tunePara <- function(quan.cutoff){
   ## 0-1 matrix ##
   ################
   
-  # old：
   pkiRecTF <- pkiRecTF[colnames(pkLigRec),rownames(pkTFTG)]
   
   pkLigTG <- pkLigRec %*% pkiRecTF %*% pkTFTG
@@ -202,8 +201,8 @@ t2 <- Sys.time()
 message(paste0('End at ',as.character(t2)))
 t2-t1 
 
-saveRDS(res1, file = "./prior_knowledge/quan.ct/result/result_res1.rds")
-saveRDS(res2, file = "./prior_knowledge/quan.ct/result/result_res1.rds")
+saveRDS(res1, file = "./quan.ct/result/result_res1.rds")
+saveRDS(res2, file = "./quan.ct/result/result_res1.rds")
 
 ## check
 
@@ -237,11 +236,11 @@ p2 <-ggplot(df.res, aes(x=quan.cutoff, y=J1.2)) +
   )
 p2
 
-pdf('./prior_knowledge/quan.ct/result/plot_result.pdf', width = 10,height = 4.5)
+pdf('./quan.ct/result/plot_result.pdf', width = 10,height = 4.5)
 gridExtra::grid.arrange(p1,p2,nrow=1)
 dev.off()
 
-png('./prior_knowledge/quan.ct/result/plot_result.png', width = 10,height = 4.5, units = 'in', res = 300)
+png('./quan.ct/result/plot_result.png', width = 10,height = 4.5, units = 'in', res = 300)
 gridExtra::grid.arrange(p1,p2,nrow=1)
 dev.off()
 

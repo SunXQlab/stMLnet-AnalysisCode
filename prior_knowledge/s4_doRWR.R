@@ -12,13 +12,12 @@ library(doSNOW)
 rm(list = ls())
 gc()
 
-setwd("E:/stMLnet/prior_knowledge/")
+setwd("./stMLnet/prior_knowledge/")
 
 ##############
 ## function ##
 ##############
 
-## RWR算法
 doRWR <- function(mygraph, restart=0.75, 
                   mode = c('directed','undirected'), 
                   normalise.affM = c("none","quantile"),
@@ -31,7 +30,6 @@ doRWR <- function(mygraph, restart=0.75,
   ## A function to make sure the sum of elements in each steady probability vector is one
   sum2one <- function(PTmatrix){
     col_sum <- apply(PTmatrix, 2, sum)
-    #col_sum <- Matrix::colSums(PTmatrix, sparseResult=F)
     col_sum_matrix <- matrix(rep(col_sum, nrow(PTmatrix)), ncol=ncol(PTmatrix), nrow=nrow(PTmatrix), byrow =T)
     res <- as.matrix(PTmatrix)/col_sum_matrix
     res[is.na(res)] <- 0
@@ -124,7 +122,7 @@ doRWR <- function(mygraph, restart=0.75,
   }
   
   if(is.null(setSeeds)){
-    Seeds <- V(mygraph)$name ## 每组seeds包括至少一个节点, 默认所有节点
+    Seeds <- V(mygraph)$name 
   }else{
     
     ## check mapping between input and graph
@@ -169,7 +167,6 @@ doRWR <- function(mygraph, restart=0.75,
     }
   }
   
-  ## should keep seed in row（row->col） 
   if(SeedInRow){
     
     PTmatrix <- t(PTmatrix)
@@ -200,16 +197,15 @@ doRWR <- function(mygraph, restart=0.75,
   invisible(PTmatrix)
 }
 
-## 划分数据集
 splitData <- function(data, k=3){
   
   getCVgroup <- function(data,k=3){
     cvlist <- list()
     datasize <- nrow(data)
-    n <- rep(1:k,ceiling(datasize/k))[1:datasize]    #将数据分成K份，并生成的完成数据集n
-    temp <- sample(n,datasize)   #把n打乱
+    n <- rep(1:k,ceiling(datasize/k))[1:datasize]   
+    temp <- sample(n,datasize)
     dataseq <- 1:datasize
-    cvlist <- lapply(1:k,function(x) dataseq[temp==x])  #dataseq中随机生成k个随机有序数据列
+    cvlist <- lapply(1:k,function(x) dataseq[temp==x])  
     return(cvlist)
   }
   cvlist <- getCVgroup(data)
@@ -230,7 +226,6 @@ splitData <- function(data, k=3){
   
 }
 
-## 构建图
 buildNet <- function(datas, mode = c('directed','undirected'), 
                      weight = c('weighted','unweighted'), 
                      train.model = FALSE, verbose=TRUE){	
@@ -303,14 +298,10 @@ buildNet <- function(datas, mode = c('directed','undirected'),
   
   if(weight == "unweighted"){
     
-    # directed: The graph will be directed and a matrix element gives the number of edges between two vertices.
-    # undirected: This is exactly the same as max, for convenience. Note that it is not checked whether the matrix is symmetric.
     net <- igraph::graph_from_adjacency_matrix(adjM, mode=mode, weighted=NULL)
     
   }else{
     
-    # directed: The graph will be directed and a matrix element gives the edge weights.
-    # undirected: First we check that the matrix is symmetric. It is an error if not. Then only the upper triangle is used to create a weighted undirected graph.
     net <- igraph::graph_from_adjacency_matrix(adjM, mode=mode, weighted=TRUE)
     
   }
@@ -319,13 +310,12 @@ buildNet <- function(datas, mode = c('directed','undirected'),
   net <- igraph::simplify(net,remove.multiple = TRUE, remove.loops = TRUE)
   
   # delete isolated nodes
-  isolates <- which(igraph::degree(net, mode = c("all")) == 0) - 1
+  isolates <- which(degree(net, mode = c("all")) == 0) - 1
   net <- delete.vertices(net, names(isolates))
   
   return (net) 	
   
 }
-
 
 ##########
 ## load ##
