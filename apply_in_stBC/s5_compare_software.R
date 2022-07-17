@@ -10,7 +10,7 @@ library(ggsci)
 rm(list = ls())
 gc()
 
-setwd('E:/stMLnet/apply_in_stBC/')
+setwd('./stMLnet/apply_in_stBC/')
 
 source('../code/code.R')
 

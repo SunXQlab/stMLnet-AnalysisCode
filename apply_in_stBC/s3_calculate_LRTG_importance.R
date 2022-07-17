@@ -13,15 +13,15 @@ library(doSNOW)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_stBC/")
 
+setwd("./stMLnet/apply_in_stBC/")
 source('../code/code.R')
 
 #########
 ## run ##
 #########
 
-wd = "./apply_in_stBC/runModel/"
+wd = "./runModel/"
 files <- list.files(wd)
 
 for (f in files) {

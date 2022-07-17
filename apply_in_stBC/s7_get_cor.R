@@ -9,7 +9,8 @@ library(SeuratWrappers)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_stBC/")
+
+setwd("./stMLnet/apply_in_stBC/")
 
 source('../code/code.R')
 
@@ -456,188 +457,177 @@ TGs = names(LRpairs)
 Receiver = 'Malignant'
 Sender = NULL
 
-far.ct = seq(0.75,0.95,0.05)
-close.ct = seq(0.05,0.25,0.05)
-gs <- data.frame(far.ct = rep(far.ct,time=length(close.ct)),
-                 close.ct = rep(close.ct,each=length(far.ct)))
-gs <- gs[gs$far.ct+gs$close.ct==1,]
+close.ct = 0.25
+far.ct = 0.75
 
 ## main ####
 
-for (i in 1:nrow(gs)) {
-  
-  close.ct = gs[i,'close.ct']
-  far.ct = gs[i,'far.ct']
-    
-  ## close group
-  
-  res_LRscore_close <- calculate_LRTG_score_V2(exprMat = exprMat.Impute, distMat = distMat, annoMat = annoMat, 
-                                               group = 'close', LRpairs = LRpairs, TGs = TGs, 
-                                               Receiver = Receiver, Sender = Sender, close.ct = close.ct)
-  mi_LRscore_close <- getMI(res_LRscore_close)
-  pcc_LRscore_close <- getPCC(res_LRscore_close)
-  write.csv(mi_LRscore_close,paste0("./runCor/distance/mi_LRscore_close",close.ct,".csv"))
-  write.csv(pcc_LRscore_close,paste0("./runCor/distance/pcc_LRscore_close",close.ct,".csv"))
-  
-  ## far group
-  
-  res_LRscore_far <- calculate_LRTG_score_V2(exprMat = exprMat.Impute, distMat = distMat, annoMat = annoMat, 
-                                             group = 'far', LRpairs = LRpairs, TGs = TGs, 
-                                             Receiver = Receiver, Sender = Sender, far.ct = far.ct)
-  mi_LRscore_far <- getMI(res_LRscore_far)
-  pcc_LRscore_far <- getPCC(res_LRscore_far)
-  write.csv(mi_LRscore_far,paste0("./runCor/distance/mi_LRscore_far",far.ct,".csv"))
-  write.csv(pcc_LRscore_far,paste0("./runCor/distance/pcc_LRscore_far",far.ct,".csv"))
-  
-  ## plot ####
-  
-  ## plot-MI
-  
-  df_plot = rbind(mi_LRscore_close,
-                  mi_LRscore_far) %>% as.data.frame()
-  df_plot$group = c(rep('close',nrow(mi_LRscore_close)),
-                    rep('far',nrow(mi_LRscore_far)))
-  
-  p <- ggplot(df_plot, aes(x = MI, group = group, color = group)) + 
-    geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
-    # xlim(c(0,1)) + 
-    theme_bw() + labs(title = Receiver) + 
-    scale_color_manual(values = cols) + 
-    theme(legend.position = c(0.8,0.7),
-          legend.background = element_rect(fill = NULL, colour = 'black'),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12)) +
-    geom_density(alpha= 0.2, size = 1)
-  
-  p1 <- p + rotate()+ theme_classic() + theme(
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  comp_list <- list(c('close','far'))
-  p2 <- ggplot(df_plot, aes(x = group, y = MI, color = group)) + 
-    scale_color_manual(values = cols) + geom_boxplot() + 
-    stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
-    geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
-  p2 <- p2 + theme_classic() + theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45,hjust = 1),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  pt_mi <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
-                     ncol = 2, nrow = 1,  align = "hv")
-  pt_mi
-  
-  ## plot-PCC
-  
-  df_plot = rbind(pcc_LRscore_close,
-                  pcc_LRscore_far) %>% as.data.frame()
-  df_plot$group = c(rep('close',nrow(pcc_LRscore_close)),
-                    rep('far',nrow(pcc_LRscore_far)))
-  df_plot$R = abs(df_plot$R)
-  
-  p <- ggplot(df_plot, aes(x = R, group = group, color = group)) + 
-    geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
-    # xlim(c(0,1)) + 
-    theme_bw() + labs(title = Receiver) + 
-    scale_color_manual(values = cols) + 
-    theme(legend.position = c(0.8,0.7),
-          legend.background = element_rect(fill = NULL, colour = 'black'),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12)) +
-    geom_density(alpha= 0.2, size = 1)
-  
-  p1 <- p + rotate()+ theme_classic() + theme(
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  comp_list <- list(c('close','far'))
-  p2 <- ggplot(df_plot, aes(x = group, y = R, color = group)) + 
-    scale_color_manual(values = cols) + geom_boxplot() + 
-    stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
-    geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
-  p2 <- p2 + theme_classic() + theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45,hjust = 1),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  pt_pcc <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
-                      ncol = 2, nrow = 1,  align = "hv")
-  pt_pcc
-  
-  ## plot-Pval
-  
-  df_plot = rbind(pcc_LRscore_close,
-                  pcc_LRscore_far) %>% as.data.frame()
-  df_plot$group = c(rep('close',nrow(pcc_LRscore_close)),
-                    rep('far',nrow(pcc_LRscore_far)))
-  df_plot$pval = -log10(df_plot$pval)
-  df_plot$pval[is.infinite(df_plot$pval)] = max(df_plot$pval[!is.infinite(df_plot$pval)])+1
-  
-  p <- ggplot(df_plot, aes(x = pval, group = group, color = group)) + 
-    geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
-    # xlim(c(0,1)) + 
-    theme_bw() + labs(title = Receiver) + 
-    scale_color_manual(values = cols) + 
-    theme(legend.position = c(0.8,0.7),
-          legend.background = element_rect(fill = NULL, colour = 'black'),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12)) +
-    geom_density(alpha= 0.2, size = 1)
-  
-  p1 <- p + rotate()+ theme_classic() + theme(
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  comp_list <- list(c('close','far'))
-  p2 <- ggplot(df_plot, aes(x = group, y = pval, color = group)) + 
-    scale_color_manual(values = cols) + geom_boxplot() + labs(y = '-log10P') +
-    # scale_y_continuous(limits = c(0,1.1), breaks = seq(0,1,0.25)) +
-    stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
-    geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
-  p2 <- p2 + theme_classic() + theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45,hjust = 1),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-  
-  pt_pval <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
-                       ncol = 2, nrow = 1,  align = "hv")
-  pt_pval
-  
-  ## merge
-  
-  pt_merge <- ggarrange(pt_pcc,pt_pval,pt_mi,legend = 'none',ncol = 3, nrow = 1,  align = "hv")
-  pt_merge
-  
-  pdf(paste0("./runCor/distance/merge_all_close",close.ct,"_far",far.ct,".pdf"),
-      width = 13,height = 4)
-  print(pt_merge)
-  dev.off()
-  
-  png(paste0("./runCor/distance/merge_all_close",close.ct,"_far",far.ct,".png"),
-      width = 13,height = 4, units = 'in', res = 300)
-  print(pt_merge)
-  dev.off()
-  
-}
+## close group
 
+res_LRscore_close <- calculate_LRTG_score_V2(exprMat = exprMat.Impute, distMat = distMat, annoMat = annoMat, 
+                                             group = 'close', LRpairs = LRpairs, TGs = TGs, 
+                                             Receiver = Receiver, Sender = Sender, close.ct = close.ct)
+mi_LRscore_close <- getMI(res_LRscore_close)
+pcc_LRscore_close <- getPCC(res_LRscore_close)
+write.csv(mi_LRscore_close,paste0("./runCor/distance/mi_LRscore_close",close.ct,".csv"))
+write.csv(pcc_LRscore_close,paste0("./runCor/distance/pcc_LRscore_close",close.ct,".csv"))
+
+## far group
+
+res_LRscore_far <- calculate_LRTG_score_V2(exprMat = exprMat.Impute, distMat = distMat, annoMat = annoMat, 
+                                           group = 'far', LRpairs = LRpairs, TGs = TGs, 
+                                           Receiver = Receiver, Sender = Sender, far.ct = far.ct)
+mi_LRscore_far <- getMI(res_LRscore_far)
+pcc_LRscore_far <- getPCC(res_LRscore_far)
+write.csv(mi_LRscore_far,paste0("./runCor/distance/mi_LRscore_far",far.ct,".csv"))
+write.csv(pcc_LRscore_far,paste0("./runCor/distance/pcc_LRscore_far",far.ct,".csv"))
+
+## plot ####
+
+## plot-MI
+
+df_plot = rbind(mi_LRscore_close,
+                mi_LRscore_far) %>% as.data.frame()
+df_plot$group = c(rep('close',nrow(mi_LRscore_close)),
+                  rep('far',nrow(mi_LRscore_far)))
+
+p <- ggplot(df_plot, aes(x = MI, group = group, color = group)) + 
+  geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
+  # xlim(c(0,1)) + 
+  theme_bw() + labs(title = Receiver) + 
+  scale_color_manual(values = cols) + 
+  theme(legend.position = c(0.8,0.7),
+        legend.background = element_rect(fill = NULL, colour = 'black'),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  geom_density(alpha= 0.2, size = 1)
+
+p1 <- p + rotate()+ theme_classic() + theme(
+  axis.title.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y = element_blank(),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+comp_list <- list(c('close','far'))
+p2 <- ggplot(df_plot, aes(x = group, y = MI, color = group)) + 
+  scale_color_manual(values = cols) + geom_boxplot() + 
+  stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
+  geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
+p2 <- p2 + theme_classic() + theme(
+  axis.title.x = element_blank(),
+  axis.text.x = element_text(angle = 45,hjust = 1),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+pt_mi <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
+                   ncol = 2, nrow = 1,  align = "hv")
+pt_mi
+
+## plot-PCC
+
+df_plot = rbind(pcc_LRscore_close,
+                pcc_LRscore_far) %>% as.data.frame()
+df_plot$group = c(rep('close',nrow(pcc_LRscore_close)),
+                  rep('far',nrow(pcc_LRscore_far)))
+df_plot$R = abs(df_plot$R)
+
+p <- ggplot(df_plot, aes(x = R, group = group, color = group)) + 
+  geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
+  # xlim(c(0,1)) + 
+  theme_bw() + labs(title = Receiver) + 
+  scale_color_manual(values = cols) + 
+  theme(legend.position = c(0.8,0.7),
+        legend.background = element_rect(fill = NULL, colour = 'black'),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  geom_density(alpha= 0.2, size = 1)
+
+p1 <- p + rotate()+ theme_classic() + theme(
+  axis.title.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y = element_blank(),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+comp_list <- list(c('close','far'))
+p2 <- ggplot(df_plot, aes(x = group, y = R, color = group)) + 
+  scale_color_manual(values = cols) + geom_boxplot() + 
+  stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
+  geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
+p2 <- p2 + theme_classic() + theme(
+  axis.title.x = element_blank(),
+  axis.text.x = element_text(angle = 45,hjust = 1),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+pt_pcc <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
+                    ncol = 2, nrow = 1,  align = "hv")
+pt_pcc
+
+## plot-Pval
+
+df_plot = rbind(pcc_LRscore_close,
+                pcc_LRscore_far) %>% as.data.frame()
+df_plot$group = c(rep('close',nrow(pcc_LRscore_close)),
+                  rep('far',nrow(pcc_LRscore_far)))
+df_plot$pval = -log10(df_plot$pval)
+df_plot$pval[is.infinite(df_plot$pval)] = max(df_plot$pval[!is.infinite(df_plot$pval)])+1
+
+p <- ggplot(df_plot, aes(x = pval, group = group, color = group)) + 
+  geom_histogram(aes(y = ..density..), fill = 'white', bins = 50) + 
+  # xlim(c(0,1)) + 
+  theme_bw() + labs(title = Receiver) + 
+  scale_color_manual(values = cols) + 
+  theme(legend.position = c(0.8,0.7),
+        legend.background = element_rect(fill = NULL, colour = 'black'),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  geom_density(alpha= 0.2, size = 1)
+
+p1 <- p + rotate()+ theme_classic() + theme(
+  axis.title.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.line.y = element_blank(),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+comp_list <- list(c('close','far'))
+p2 <- ggplot(df_plot, aes(x = group, y = pval, color = group)) + 
+  scale_color_manual(values = cols) + geom_boxplot() + labs(y = '-log10P') +
+  # scale_y_continuous(limits = c(0,1.1), breaks = seq(0,1,0.25)) +
+  stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="black") +
+  geom_signif(comparisons = comp_list, test = t.test, map_signif_level = T, color = 'black', step_increase = 0.1) 
+p2 <- p2 + theme_classic() + theme(
+  axis.title.x = element_blank(),
+  axis.text.x = element_text(angle = 45,hjust = 1),
+  axis.title = element_text(size = 14),
+  axis.text = element_text(size = 12)
+)
+
+pt_pval <- ggarrange(p2,p1, widths = c(2,3), legend = 'none',
+                     ncol = 2, nrow = 1,  align = "hv")
+pt_pval
+
+## merge
+
+pt_merge <- ggarrange(pt_pcc,pt_pval,pt_mi,legend = 'none',ncol = 3, nrow = 1,  align = "hv")
+pt_merge
+
+pdf(paste0("./runCor/distance/merge_all_close",close.ct,"_far",far.ct,".pdf"),
+    width = 13,height = 4)
+print(pt_merge)
+dev.off()
+
+png(paste0("./runCor/distance/merge_all_close",close.ct,"_far",far.ct,".png"),
+    width = 13,height = 4, units = 'in', res = 300)
+print(pt_merge)
+dev.off()

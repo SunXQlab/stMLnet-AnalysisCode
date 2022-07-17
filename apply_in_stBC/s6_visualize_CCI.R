@@ -16,7 +16,7 @@ library(ggalluvial)
 rm(list = ls())
 gc()
 
-setwd('E:/stMLnet/apply_in_stBC/')
+setwd('./stMLnet/apply_in_stBC/')
 
 source('../code/code.R')
 
@@ -85,21 +85,18 @@ colodb = pal_nejm(palette = "default", alpha = 0.7)(7)
 names(colodb) <- celltype
 scales::show_col(colodb)
 
-for (key in colnames(LRTG_detail)[3:8]) {
-  
-  tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
-  colnames(tmeTab) <- c('cell_from','cell_to','n')
-  
-  png(paste0(plotdir,"networkPlot_",key,".png"),
-      height = 7,width = 9, units = 'in', res = 300)
-  DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
-  dev.off()
-  
-  pdf(paste0(plotdir,"networkPlot_",key,".pdf"),height = 7,width = 9)
-  DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
-  dev.off()
-  
-}
+key <- 'n_LRs'
+tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
+colnames(tmeTab) <- c('cell_from','cell_to','n')
+
+png(paste0(plotdir,"networkPlot_",key,".png"),
+    height = 7,width = 9, units = 'in', res = 300)
+DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
+dev.off()
+
+pdf(paste0(plotdir,"networkPlot_",key,".pdf"),height = 7,width = 9)
+DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
+dev.off()
 
 ######################
 ## LR activity Plot ##
@@ -131,7 +128,7 @@ df_LRTGscore = lapply(files, function(file){
 
 # input
 
-df_input <- prepareEdgeBundlingPlotData_V2(df_LRTGscore, do.check = T)
+df_input <- prepareEdgeBundlingPlotData(df_LRTGscore, do.check = T)
 str(df_input$df_edge)
 
 # plot
@@ -160,7 +157,7 @@ LRTG_im_merge <- lapply(files, function(f){
   
 }) %>% do.call('rbind',.)
 
-df_MLnet_long_check <- prepareAlluviumPlotData_V2(lrtg_im = LRTG_im_merge, 
+df_MLnet_long_check <- prepareAlluviumPlotData(lrtg_im = LRTG_im_merge, 
                                                   color.by = 'Sender',
                                                   do.check = TRUE)
 head(df_MLnet_long_check)
@@ -182,7 +179,7 @@ head(LRTG_im)
 
 Key <- c('SEMA4D')
 Type <- 'Ligand'
-MLnet_key <- prepareMLnetworkPlotData_V3(mlnet=MLnet,lrtg_im=LRTG_im,Key=Key,Type=Type,do.check = T)
+MLnet_key <- prepareMLnetworkPlotData(mlnet=MLnet,lrtg_im=LRTG_im,Key=Key,Type=Type,do.check = T)
 str(MLnet_key)
 
 colodb = pal_locuszoom(palette = "default", alpha = 0.5)(4)
@@ -191,12 +188,12 @@ scales::show_col(colodb)
 
 downstream <- 'Target'
 gtitle <- 'T_TC_SEMA4D'
-drawMLnetworkPlot_V4(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
+drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
                      gtitle=gtitle,wd=plotdir,p_height = 4.5,p_width = 7)
 
 Key <- c('TGFB1')
 Type <- 'Ligand'
-MLnet_key <- prepareMLnetworkPlotData_V3(mlnet=MLnet,lrtg_im=LRTG_im,Key=Key,Type=Type,do.check = T)
+MLnet_key <- prepareMLnetworkPlotData(mlnet=MLnet,lrtg_im=LRTG_im,Key=Key,Type=Type,do.check = T)
 str(MLnet_key)
 
 colodb = pal_locuszoom(palette = "default", alpha = 0.5)(4)
@@ -205,7 +202,7 @@ scales::show_col(colodb)
 
 downstream <- 'Target'
 gtitle <- 'T_TC_TGFB1'
-drawMLnetworkPlot_V4(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
+drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
                      gtitle=gtitle,wd=plotdir,p_height = 4.5,p_width = 7)
 
 #############
