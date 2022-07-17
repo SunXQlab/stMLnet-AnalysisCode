@@ -14,7 +14,8 @@ library(ggalluvial)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_COVID19/")
+
+setwd("./stMLnet/apply_in_COVID19/")
 
 source('../code/code.R')
 
@@ -396,7 +397,7 @@ for (receiver in celltypes) {
     
     if(!is.null(LRTG_im_merge)){
       
-      df_MLnet_long_check <- prepareAlluviumPlotData_V2(lrtg_im = LRTG_im_merge, 
+      df_MLnet_long_check <- prepareAlluviumPlotData(lrtg_im = LRTG_im_merge, 
                                                         color.by = 'Sender',
                                                         do.check = TRUE)
       head(df_MLnet_long_check)
@@ -474,7 +475,7 @@ for (receiver in celltypes) {
   
   Key <- df_key[senders] %>% unlist()
   Type <- 'Ligand'
-  MLnet_key <- prepareMLnetworkPlotData_V3(mlnet=MLnet_merge,lrtg_im=LRTG_im_merge,Key=Key,Type=Type,do.check = T)
+  MLnet_key <- prepareMLnetworkPlotData(mlnet=MLnet_merge,lrtg_im=LRTG_im_merge,Key=Key,Type=Type,do.check = T)
   str(MLnet_key)
   
   colodb = pal_locuszoom(palette = "default", alpha = 0.5)(4)
@@ -486,7 +487,7 @@ for (receiver in celltypes) {
   downstream <- 'Target'
   gtitle <- paste0('Sender-',receiver)
   plotdir <- "./feedback/figure/"
-  drawMLnetworkPlot_V4(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
+  drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
                        gtitle=gtitle,wd=plotdir,p_height = 4.5,p_width = 7)
   
   

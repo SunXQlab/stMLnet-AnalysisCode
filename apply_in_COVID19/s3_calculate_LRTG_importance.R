@@ -13,7 +13,7 @@ library(doSNOW)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_COVID19/")
+setwd("./stMLnet/apply_in_COVID19/")
 
 source('../code/code.R')
 

@@ -11,7 +11,7 @@ library(ggraph)
 
 rm(list=ls())
 gc()
-setwd("E:/stMLnet/apply_in_COVID19/")
+setwd("./stMLnet/apply_in_COVID19/")
 
 source('../code/code.R')
 
@@ -87,21 +87,18 @@ colnames(LRTG_detail) <- c('cell_from','cell_to','n_LRs','n_TGs','IM','IM_norm',
 colodb = mycolor_ct
 scales::show_col(colodb)
 
-for (key in colnames(LRTG_detail)[3:8]) {
-  
-  tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
-  colnames(tmeTab) <- c('cell_from','cell_to','n')
-  
-  png(paste0(plotdir,"networkPlot_",key,".png"),
-      height = 7,width = 9, units = 'in', res = 300)
-  DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
-  dev.off()
-  
-  pdf(paste0(plotdir,"networkPlot_",key,".pdf"),height = 7,width = 9)
-  DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
-  dev.off()
-  
-}
+key <- 'n_LRs'
+tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
+colnames(tmeTab) <- c('cell_from','cell_to','n')
+
+png(paste0(plotdir,"networkPlot_",key,".png"),
+    height = 7,width = 9, units = 'in', res = 300)
+DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
+dev.off()
+
+pdf(paste0(plotdir,"networkPlot_",key,".pdf"),height = 7,width = 9)
+DrawCellComm(tmeTab,colodb = colodb,gtitle = 'CCI')
+dev.off()
 
 ######################
 ## LR activity Plot ##
@@ -138,7 +135,7 @@ for (ct in celltype) {
     
     # input
     
-    df_input <- prepareEdgeBundlingPlotData_V2(df_LRTGscore, do.check = T)
+    df_input <- prepareEdgeBundlingPlotData(df_LRTGscore, do.check = T)
     str(df_input$df_edge)
     
     # plot
