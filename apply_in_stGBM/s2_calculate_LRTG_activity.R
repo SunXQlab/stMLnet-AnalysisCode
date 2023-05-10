@@ -1,0 +1,83 @@
+#############
+## library ##
+#############
+
+library(dplyr)
+library(Giotto)
+library(Seurat)
+library(SeuratWrappers)
+
+rm(list=ls())
+gc()
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
+source('../code/code.R')
+
+##########
+## main ##
+##########
+
+## load ####
+
+wd <- "./runscMLnet/"
+files = list.files(wd)
+files_tumor = files[grep(".csv",files,invert = T)]
+mulNetAllList = lapply(files_tumor, function(file_tumor){
+  
+  readRDS(paste0(wd,file_tumor,"/scMLnet.rds"))
+  
+})
+names(mulNetAllList) = files_tumor
+mulNetAllList = mulNetAllList[!unlist(lapply(mulNetAllList, function(mulnet){nrow(mulnet$LigRec)==0}))]
+
+gio_stGBM <- readRDS("./input/giotto_stGBM.rds")
+annoMat <- data.frame(Barcode=gio_stGBM@cell_metadata$cell_ID %>% as.character(),
+                      Cluster=gio_stGBM@cell_metadata$celltype %>% as.character())
+locaMat <- data.frame(gio_stGBM@spatial_locs[,1:2])
+rownames(locaMat) <- gio_stGBM@cell_metadata$cell_ID
+
+seed <- 4321
+exprMat = gio_stGBM@norm_expr
+exprMat.Impu <- run_Imputation(exprMat, use.seed = T,seed = seed)
+
+distMat <- as.matrix(dist(locaMat))
+
+# main
+
+for (cellpair in names(mulNetAllList)) {
+  
+  message(cellpair)
+  Sender = strsplit(cellpair,"_")[[1]][1]
+  Receiver = strsplit(cellpair,"_")[[1]][2]
+  
+  LRTG_allscore_tumor_merge = calculate_LRTG_allscore_V2(
+    exprMat = exprMat.Impu, distMat = distMat, annoMat = annoMat,
+    mulNetList = mulNetAllList, Receiver = Receiver, Sender = Sender)
+  
+  saveRDS(LRTG_allscore_tumor_merge,
+          paste0("./runModel/LRTG_allscore_",cellpair,".rds"))
+  
+}
+
+#####################
+## TME-macrophages ##
+#####################
+
+Receiver = 'macrophages'
+Sender = NULL
+
+wd = './runscMLnet/'
+folders = list.dirs(wd)
+folders = folders[grep('_macrophages',folders)] 
+mulNetAllList <- lapply(folders, function(fd){
+  
+  readRDS(paste0(fd,"/scMLnet.rds"))
+  
+})
+names(mulNetAllList) <- stringr::str_split(folders,pattern = "/",simplify = T)[,4] %>% as.vector()
+mulNetAllList = mulNetAllList[!unlist(lapply(mulNetAllList, function(mulnet){nrow(mulnet$LigRec)==0}))]
+
+LRTGscore_TC_TAM <- calculate_LRTG_allscore_V2(
+  exprMat = exprMat.Impu, distMat = distMat, annoMat = annoMat,
+  mulNetList = mulNetAllList, Receiver = Receiver, Sender = Sender)
+
+saveRDS(LRTGscore_TC_TAM, paste0("./runModel/LRTG_allscore_TME_TAM.rds"))
