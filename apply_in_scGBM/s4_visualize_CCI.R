@@ -16,7 +16,7 @@ library(ggalluvial)
 rm(list = ls())
 gc()
 
-setwd('./stMLnet/apply_in_scGBM/')
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/results_TG_limma_logfc1_padj0.1/")
 
 source('../code/code.R')
 
@@ -27,7 +27,7 @@ source('../code/code.R')
 scales::show_col(pal_nejm(palette = "default", alpha = 0.7)(8))
 mycolors_nejm <- pal_nejm(palette = "default", alpha = 0.7)(8)
 
-celltype <- c("Malignant","macrophages","oligodendrocytes","Tcell")
+celltype <- c("Malignant","macrophages","Astrocytes","oligodendrocytes","endothelial")
 mycolor_ct <- mycolors_nejm[1:length(celltype)]
 names(mycolor_ct) <- celltype
 scales::show_col(mycolor_ct)
@@ -55,11 +55,12 @@ plotdir = './visualize_CCI/'
 ## NetworkPlot ##
 #################
 
-inputdir <- './getPIM'
+inputdir <- './getPIM/'
 files <- list.files(inputdir)[grep('_im_',list.files(inputdir))]
 files <- files[!grepl('TME',files)]
 LRTG_detail <- lapply(files, function(f){
   
+  # f = files[1]
   LRTG_im <- readRDS(paste0(inputdir,f))
   c(length(unique(LRTG_im$LRpair)),length(unique(LRTG_im$Target)),
     sum(LRTG_im$IM),sum(LRTG_im$im_norm),
@@ -70,18 +71,22 @@ df_cellpair <- gsub('LRTG_im_clean_|.rds','',files) %>% strsplit(.,"_") %>% do.c
 LRTG_detail <- cbind(df_cellpair,LRTG_detail)
 colnames(LRTG_detail) <- c('cell_from','cell_to','n_LRs','n_TGs','IM','IM_norm','mean_IM','mean_IM_norm')
 
-key <- 'n_LRs'
-tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
-colnames(tmeTab) <- c('cell_from','cell_to','n')
-
-png(paste0("./visualize_CCI/networkPlot_",key,".png"),
-    height = 7,width = 9, units = 'in', res = 300)
-DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
-dev.off()
-
-pdf(paste0("./visualize_CCI/networkPlot_",key,".pdf"),height = 7,width = 9)
-DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
-dev.off()
+for (key in colnames(LRTG_detail)[3:8]) {
+  
+  # key <- 'n_LRs'
+  tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
+  colnames(tmeTab) <- c('cell_from','cell_to','n')
+  
+  png(paste0("./visualize_CCI/networkPlot_",key,".png"),
+      height = 6,width = 8, units = 'in', res = 300)
+  DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
+  dev.off()
+  
+  pdf(paste0("./visualize_CCI/networkPlot_",key,".pdf"),height = 6,width = 8)
+  DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
+  dev.off()
+  
+}
 
 ############################
 ## MLnetPlot: directedCCI ##
@@ -98,18 +103,29 @@ LRTG_im <- readRDS(paste0(wd,"LRTG_im_clean_macrophages_Malignant.rds"))
 
 Key <- c('IGF1')
 Type <- 'Ligand'
+#MLnet_key <- prepareMLnetworkPlotData_V3(mlnet = MLnet,lrtg_im = LRTG_im,Key=Key,Type=Type,do.check = T)
 MLnet_key <- prepareMLnetworkPlotData(mlnet = MLnet,lrtg_im = LRTG_im,Key=Key,Type=Type,do.check = T)
 str(MLnet_key)
+
+# Key2 <- c('ITGAV')
+# Type2 <- 'Receptor'
+# #MLnet_key <- prepareMLnetworkPlotData_V3(mlnet = MLnet,lrtg_im = LRTG_im,Key=Key,Type=Type,do.check = T)
+# MLnet_key2 <- prepareMLnetworkPlotData(mlnet = MLnet_key1,lrtg_im = LRTG_im,Key=Key2,Type=Type2,do.check = T)
+# str(MLnet_key2)
 
 colodb = pal_locuszoom(palette = "default", alpha = 0.5)(4)
 names(colodb) <- nodekey
 scales::show_col(colodb)
 
 downstream <- 'Target'
-gtitle <- 'TAM_TC_IGF1'
-wd <- './visualize_CCI/'
+gtitle <- 'TAM_TC_IGF1_ITGAV'
+wd <- './visualize_CCI_V2/'
+# drawMLnetworkPlot_V4(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
+#                      gtitle=gtitle,wd=wd,p_height = 4,p_width = 7)
 drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
-                     gtitle=gtitle,wd=wd,p_height = 4,p_width = 7)
+                     gtitle=gtitle,wd=wd,p_height = 3.7,p_width = 6)
+
+
 ## TC_TAM
 
 wd <- "./runscMLnet/"
@@ -121,6 +137,7 @@ LRTG_im <- readRDS(paste0(wd,"LRTG_im_clean_Malignant_macrophages.rds"))
 
 Key <- c('IL4R','CSF1R')
 Type <- 'Receptor'
+#MLnet_key <- prepareMLnetworkPlotData_V3(mlnet = MLnet,lrtg_im = LRTG_im,Key=Key,Type=Type,do.check = T)
 MLnet_key <- prepareMLnetworkPlotData(mlnet = MLnet,lrtg_im = LRTG_im,Key=Key,Type=Type,do.check = T)
 str(MLnet_key)
 
@@ -129,11 +146,15 @@ names(colodb) <- nodekey
 scales::show_col(colodb)
 
 downstream <- 'Target'
-gtitle <- 'TC_TAM_IL4R_CSF1R'
-wd <- './visualize_CCI/'
+gtitle <- 'TC_TAM_IL34_CSF1R'
+wd <- './visualize_CCI_V2/'
+# drawMLnetworkPlot_V4(mlnet=MLnet_key,downstream=downstream,
+#                      colodb=colodb,gtitle=gtitle,wd=wd,
+#                      p_height = 4,p_width = 10)
 drawMLnetworkPlot(mlnet=MLnet_key,downstream=downstream,
                      colodb=colodb,gtitle=gtitle,wd=wd,
-                     p_height = 4,p_width = 10)
+                     p_height = 3.7,p_width = 6)
+
 
 ###############################
 ## AlluvialPlot: directedCCI ##
@@ -141,18 +162,22 @@ drawMLnetworkPlot(mlnet=MLnet_key,downstream=downstream,
 
 ## TME-TC
 
-wd <- "./getPIM/"
+wd <- './getPIM/'
 files <- list.files(wd) %>% .[grep('_im_',.)] %>% .[grep('_Malignant.rds',.)]
 LRTG_im_merge <- lapply(files, function(f){
   
   LRTG_im <- readRDS(paste0(wd,f))
   LRTG_im$Sender <- strsplit(f,'-|_')[[1]][4]
   LRTG_im
+  # head(LRTG_im)
   
 }) %>% do.call('rbind',.)
 
+# df_MLnet_long_check <- prepareAlluviumPlotData_V2(lrtg_im = LRTG_im_merge, 
+#                                                   color.by = 'Sender', # Nodekey
+#                                                   do.check = TRUE)
 df_MLnet_long_check <- prepareAlluviumPlotData(lrtg_im = LRTG_im_merge, 
-                                                  color.by = 'Sender',
+                                                  color.by = 'Sender', # Nodekey
                                                   do.check = TRUE)
 head(df_MLnet_long_check)
 
@@ -162,22 +187,23 @@ scales::show_col(colodb)
 gtitle <- 'TME_Malignant'
 wd = './visualize_CCI/'
 drawAlluviumPlot(df_MLnet_long_check, colodb = colodb, gtitle = gtitle,
-                 wd = wd,p_height=9, p_width=18)
+                 wd = wd,p_height=5.5, p_width=8)
 
 ## TME-TAM
 
-wd <- "./getPIM/"
+wd <- './getPIM/'
 files <- list.files(wd) %>% .[grep('_im_',.)] %>% .[grep('_macrophages.rds',.)]
 LRTG_im_merge <- lapply(files, function(f){
   
   LRTG_im <- readRDS(paste0(wd,f))
   LRTG_im$Sender <- strsplit(f,'-|_')[[1]][4]
   LRTG_im
+  # head(LRTG_im)
   
 }) %>% do.call('rbind',.)
 
 df_MLnet_long_check <- prepareAlluviumPlotData(lrtg_im = LRTG_im_merge, 
-                                                  color.by = 'Sender',
+                                                  color.by = 'Sender', # Nodekey
                                                   do.check = TRUE)
 head(df_MLnet_long_check)
 
@@ -187,140 +213,4 @@ scales::show_col(colodb)
 gtitle <- 'TME_Macrophages'
 wd = './visualize_CCI/'
 drawAlluviumPlot(df_MLnet_long_check, colodb = colodb, gtitle = gtitle,
-                 wd = wd,p_height=9, p_width=18)
-
-#########################
-## function annotation ##
-#########################
-## TAM-TC ####
-
-LRTG_im <- readRDS("./getPIM/LRTG_im_clean_macrophages_Malignant.rds")
-LRTG_im_spl <- split(LRTG_im,LRTG_im$Receptor)
-
-t1 <- Sys.time()
-res_ORA_GO <- Perf_Enrich(LRTG_im_spl,Type = 'ORA',DB='GO')
-res_ORA_KEGG <- Perf_Enrich(LRTG_im_spl,Type = 'ORA',DB='KEGG')
-t2 <- Sys.time()
-t2-t1
-
-res_Enrich <- list(res_ORA_GO = res_ORA_GO,
-                   res_ORA_KEGG = res_ORA_KEGG)
-saveRDS(res_Enrich,"./visualize_CCI/res_Enrich_TAM_TC_Rec.rds")
-
-## clean
-
-res_ORA_KEGG <- res_Enrich$res_ORA_KEGG
-res_ORA_KEGG$ID %>% unique() %>% length()
-df_kegg <- res_ORA_KEGG[res_ORA_KEGG$p.adjust <= 0.05,]
-df_kegg$geneRatio <- lapply(df_kegg$GeneRatio,function(chr){
-  x = strsplit(chr,'/')[[1]][1] %>% as.numeric()
-  y = strsplit(chr,'/')[[1]][2] %>% as.numeric()
-  x/y
-}) %>% unlist()
-df_kegg$bgRatio <- lapply(df_kegg$BgRatio,function(chr){
-  x = strsplit(chr,'/')[[1]][1] %>% as.numeric()
-  y = strsplit(chr,'/')[[1]][2] %>% as.numeric()
-  x/y
-}) %>% unlist()
-df_kegg <- df_kegg[order(df_kegg$geneRatio,decreasing = T),]
-
-## plot
-
-df_kegg_ITGAV <- df_kegg[df_kegg$Regulator == 'ITGAV',]
-df_kegg_ITGAV <- df_kegg_ITGAV[order(df_kegg_ITGAV$geneRatio,decreasing = T),]
-df_kegg_ITGAV$Description <- factor(df_kegg_ITGAV$Description,levels = rev(df_kegg_ITGAV$Description))
-
-pt_kegg_ITGAV <- ggplot(data=df_kegg_ITGAV[1:20,],aes(x=geneRatio,y=Description,size=Count,col=p.adjust)) +
-  geom_point() + scale_color_material('pink',reverse = T, alpha = 0.5) +
-  theme_bw() + labs(title='KEGG Enrichment Analysis of ITGAV in TAM_TC',y='') +
-  theme(
-    plot.title = element_text(hjust = 0.5,size = 12), 
-    panel.background = element_blank(), 
-    legend.key = element_blank(), 
-    axis.text.y = element_text(size = 10),
-    legend.position = 'bottom'
-  )
-pt_kegg_ITGAV
-
-## TC-TAM ####
-
-LRTG_im <- readRDS("./getPIM/LRTG_im_clean_Malignant_macrophages.rds")
-LRTG_im_spl <- split(LRTG_im,LRTG_im$Receptor)
-
-t1 <- Sys.time()
-res_ORA_GO <- Perf_Enrich(LRTG_im_spl,Type = 'ORA',DB='GO')
-res_ORA_KEGG <- Perf_Enrich(LRTG_im_spl,Type = 'ORA',DB='KEGG')
-t2 <- Sys.time()
-t2-t1 
-
-res_Enrich <- list(res_ORA_GO = res_ORA_GO,
-                   res_ORA_KEGG = res_ORA_KEGG)
-saveRDS(res_Enrich,"./visualize_CCI/res_Enrich_TC_TAM_Rec.rds")
-
-## clean
-
-res_ORA_KEGG <- res_Enrich$res_ORA_KEGG
-res_ORA_KEGG$ID %>% unique() %>% length()
-df_kegg <- res_ORA_KEGG[res_ORA_KEGG$p.adjust<=0.05,]
-df_kegg$geneRatio <- lapply(df_kegg$GeneRatio,function(chr){
-  x = strsplit(chr,'/')[[1]][1] %>% as.numeric()
-  y = strsplit(chr,'/')[[1]][2] %>% as.numeric()
-  x/y
-}) %>% unlist()
-df_kegg$bgRatio <- lapply(df_kegg$BgRatio,function(chr){
-  x = strsplit(chr,'/')[[1]][1] %>% as.numeric()
-  y = strsplit(chr,'/')[[1]][2] %>% as.numeric()
-  x/y
-}) %>% unlist()
-df_kegg <- df_kegg[order(df_kegg$geneRatio),]
-
-## plot
-
-# KEGG_IL4R_top
-
-df_kegg_IL4R <- df_kegg[df_kegg$Regulator == 'IL4R',]
-df_kegg_IL4R <- df_kegg_IL4R[order(df_kegg_IL4R$geneRatio,decreasing = T),]
-df_kegg_IL4R$Description <- factor(df_kegg_IL4R$Description,levels = rev(df_kegg_IL4R$Description))
-
-pt_kegg_IL4R <- ggplot(data=df_kegg_IL4R[1:20,],aes(x=geneRatio,y=Description,size=Count,col=p.adjust)) +
-  geom_point() + scale_color_material('pink',reverse = T, alpha = 0.5) + 
-  theme_bw() + labs(title='KEGG Enrichment Analysis of IL4R in TC-TAM',y='') +
-  theme(
-    plot.title = element_text(hjust = 0.5,size = 12), 
-    panel.background = element_blank(),
-    legend.key = element_blank(),
-    axis.text.y = element_text(size = 10),
-    legend.position="bottom"
-  )
-pt_kegg_IL4R
-
-# KEGG_CSF1R_top
-
-df_kegg_CSF1R <- df_kegg[df_kegg$Regulator == 'CSF1R',]
-df_kegg_CSF1R <- df_kegg_CSF1R[order(df_kegg_CSF1R$geneRatio,decreasing = T),]
-df_kegg_CSF1R$Description <- factor(df_kegg_CSF1R$Description,levels = rev(df_kegg_IL4R$Description))
-pt_kegg_CSF1R <- ggplot(data=df_kegg_CSF1R[1:20,],aes(x=geneRatio,y=Description,size=Count,col=p.adjust)) +
-  geom_point() + scale_color_material('pink',reverse = T, alpha = 0.5) + 
-  theme_bw() + labs(title='KEGG Enrichment Analysis of CSF1R in TC-TAM',y='') +
-  theme(
-    plot.title = element_text(hjust = 0.5,size = 12),
-    panel.background = element_blank(),
-    legend.key = element_blank(),
-    axis.text.y = element_text(size = 10),
-    legend.position = 'bottom',
-  )
-pt_kegg_CSF1R
-
-# merge
-
-pt_merge <- ggpubr::ggarrange(pt_kegg_IL4R,pt_kegg_CSF1R,pt_kegg_ITGAV, nrow = 1,align = 'hv')
-
-png("./visualize_CCI/bubble_enrichment_KEGG_merge.png", 
-    width = 18, height = 5, units = 'in', res = 1000)
-pt_merge
-dev.off()
-
-pdf("./visualize_CCI/bubble_enrichment_KEGG_merge.pdf", 
-    width = 18, height = 5)
-pt_merge
-dev.off()
+                 wd = wd,p_height=5.5, p_width=8)
