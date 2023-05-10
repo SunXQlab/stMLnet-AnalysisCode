@@ -3,40 +3,43 @@
 #############
 
 library(dplyr)
+library(Giotto)
 library(Seurat)
 library(SeuratWrappers)
 
 rm(list=ls())
 gc()
-
-setwd("./stMLnet/apply_in_scGBM/")
-
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
 source('../code/code.R')
 
 ##########
-## load ##
+## main ##
 ##########
 
-load("./input/input.rda")
-annoMat[1:4,1:4]
-distMat[1:4,1:4]
-exprMat.Impu[1:4,1:4]
+## load ####
 
-##################
-## TEM-Receiver ##
-##################
-
-# load
-
-wd = './runscMLnet/'
-folders = list.dirs(wd)
-mulNetAllList <- lapply(folders[-1], function(fd){
+wd <- "./runscMLnet/"
+files = list.files(wd)
+files_tumor = files[grep(".csv",files,invert = T)]
+mulNetAllList = lapply(files_tumor, function(file_tumor){
   
-  readRDS(paste0(fd,"/scMLnet.rds"))
+  readRDS(paste0(wd,file_tumor,"/scMLnet.rds"))
   
 })
-names(mulNetAllList) <- stringr::str_split(folders[-1],pattern = "/",simplify = T)[,9] %>% as.vector()
+names(mulNetAllList) = files_tumor
 mulNetAllList = mulNetAllList[!unlist(lapply(mulNetAllList, function(mulnet){nrow(mulnet$LigRec)==0}))]
+
+gio_stGBM <- readRDS("./input/giotto_stGBM.rds")
+annoMat <- data.frame(Barcode=gio_stGBM@cell_metadata$cell_ID %>% as.character(),
+                      Cluster=gio_stGBM@cell_metadata$celltype %>% as.character())
+locaMat <- data.frame(gio_stGBM@spatial_locs[,1:2])
+rownames(locaMat) <- gio_stGBM@cell_metadata$cell_ID
+
+seed <- 4321
+exprMat = gio_stGBM@norm_expr
+exprMat.Impu <- run_Imputation(exprMat, use.seed = T,seed = seed)
+
+distMat <- as.matrix(dist(locaMat))
 
 # main
 
@@ -78,4 +81,3 @@ LRTGscore_TC_TAM <- calculate_LRTG_allscore_V2(
   mulNetList = mulNetAllList, Receiver = Receiver, Sender = Sender)
 
 saveRDS(LRTGscore_TC_TAM, paste0("./runModel/LRTG_allscore_TME_TAM.rds"))
-
