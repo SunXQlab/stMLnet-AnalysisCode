@@ -20,14 +20,15 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
     - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig2B-F.
    - s7_get_cor.R: calculate the LR-target correlations,responding to Fig5 and FigS5.
 2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig4B. <br>
-3. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
+3. **apply_in_scST** contains the code to reproduce the plota and detailed analysis of the three single-cell resolution ST datasets, merfish, seqfish, slideseq2 respectively<br>
+4. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig6B-C.
    - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig6D,F and FigS6,S7.
-4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset <br>
+5. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig7B-D.
    - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk, MISTy) on gliomas dataset, corresponding to Fig7F.
    - s6_gesaAnalysis.R: GSEA analysis of macrophages and malignnat, corresponding to FigS8.
-5. **code** contains all functions of stMLnet to analysis cell-cell interactions <br>
+6. **code** contains all functions of stMLnet to analysis cell-cell interactions <br>
 
 ## Databases
 
