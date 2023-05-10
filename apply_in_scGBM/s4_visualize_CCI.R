@@ -16,7 +16,7 @@ library(ggalluvial)
 rm(list = ls())
 gc()
 
-setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/results_TG_limma_logfc1_padj0.1/")
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
 
 source('../code/code.R')
 
