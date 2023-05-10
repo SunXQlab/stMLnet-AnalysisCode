@@ -27,7 +27,7 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
     - s4_compare_method.R: compare the performance of different distance algorithm on breast cancer datasets, corresponding to Fig5.(这部分删掉了？)
     - s5_compare_software.R: compare the performance of similar software (MISTy, NicheNet, CytoTalk) on breast cancer datasets, corresponding to Fig5F.
     - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig5B-E.
-    - s7_get_cor.R: calculate the LR-target correlations,responding to FigS6.
+    - s7_get_cor.R: calculate the LR-target correlations, responding to FigS6.
 4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset, corresponding to Fig6 <br>
    - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-D and FigS7.
    - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk, MISTy) on gliomas dataset, corresponding to Fig6E.
