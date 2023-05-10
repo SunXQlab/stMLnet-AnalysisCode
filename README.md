@@ -12,14 +12,14 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
 ## Workflow
 
 1. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig2. <br>
-2. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets (merfish, seqfish, slideseq2 respectively)<br>
+2. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets<br>
     * **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
       - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig3B-F.
     * **giotto_mefish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
       - **giotto_mefish_dataset_layer3**, **giotto_mefish_dataset_layer6**, **giotto_mefish_dataset_layer9**, **giotto_mefish_dataset_layer12** contains the code to reproduce the plot and analysis on different layers of merfish dataset, corresponding to FigS4.
       - **giotto_mefish_dataset_layer9**
-        * s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
-        * s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
+        - s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
+        - s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
         - s3_calculate_LRTG_importance.R: train a random forest model to predicte LR-target gene regulation.
         - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4B-E.
     * **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset, corresponding to Fig4F-I.<br>
