@@ -18,8 +18,8 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
     * **giotto_mefish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
       - **giotto_mefish_dataset_layer3**, **giotto_mefish_dataset_layer6**, **giotto_mefish_dataset_layer9**, **giotto_mefish_dataset_layer12** contains the code to reproduce the plot and analysis on different layers of merfish dataset, corresponding to FigS4.
       - **giotto_mefish_dataset_layer9**
-        - s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
-        - s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
+        * s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
+        * s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
         - s3_calculate_LRTG_importance.R: train a random forest model to predicte LR-target gene regulation.
         - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4B-E.
     * **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset, corresponding to Fig4F-I.<br>
