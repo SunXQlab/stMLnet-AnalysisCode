@@ -3,13 +3,13 @@
 #############
 
 library(dplyr)
+library(Giotto)
 library(Seurat)
 
 rm(list=ls())
 gc()
 
-setwd("./stMLnet/apply_in_scGBM/")
-
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
 source('../code/code.R')
 
 ###############
@@ -18,44 +18,56 @@ source('../code/code.R')
 
 ## load
 
-load("./input/input.rda")
-GCMat <- exprMat.Impu
-BarCluTable <- annoMat
-clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
-
-Ligs_up_list <- readRDS("./input/Ligs_up_list.rds")
-Recs_expr_list <- readRDS("./input/Recs_expr_list.rds")
+gio_stGBM <- readRDS("./input/giotto_stGBM.rds") #Giotto object of ST breast cancer: 11767 genes * 3416 cells
+Ligs_up_list <- readRDS("./input/10X_stGBM_Ligs_up.rds") #using 'finfMarker' function from Seurat to obtain Ligand gene set
+Recs_expr_list <- readRDS("./input/10X_stGBM_Recs_expr.rds") #filting expression to obtain receptor gene set
+Databases <- readRDS('./prior_knowledge/Databases.rds') #prior databases 
 
 ## load DEGs
 
-TGs_list <- readRDS('./data/2016Science/TGs_list.rds')
+TGs_list <- readRDS('../2016Science/TGs_list_limma_logfc1_pval0.1.rds')
+#TGs_list <- readRDS('../2016Science/TGs_list_logfc2_pval0.05.rds')
 ICGs_list <- TGs_list[grep("RebEP",names(TGs_list))]
 names(ICGs_list) <- gsub('RebEP_TAM','macrophages',names(ICGs_list))
 names(ICGs_list) <- gsub('RebEP_TC','Malignant',names(ICGs_list))
 
-DEGs_list <- readRDS("./input/DEGs_lists.rds")
+DEGs_list <- readRDS("./input/DEGs_lists_logfc1_padj0.1.rds")
 ICGs_list[['oligodendrocytes']] <- DEGs_list$oligodendrocytes
-ICGs_list[['Tcell']] <- DEGs_list$Tcell
+ICGs_list[['Astrocytes']] <- DEGs_list$Astrocytes
+ICGs_list[['endothelial']] <- DEGs_list$endothelial
+
+# library(readr)
+# Macro <- read_csv("~/cell_cell_interaction/apply_in_stGBM/MacroMarkerGene.csv")
+# View(MacroMarkerGene)
+# 
+# ICGs_list <- DEGs_list
+## data
+
+GCMat = gio_stGBM@norm_expr
+BarCluTable = data.frame(Barcode=gio_stGBM@cell_metadata$cell_ID,
+                         Cluster=gio_stGBM@cell_metadata$celltype)
+clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
+
+## parameters
+
+quan.cutoff = 0.98 
+#LigClu <- NULL
+RecClu <- 'macrophages' 
+wd <- "./runscMLnet/"
 
 ## database
 
-quan.cutoff = 0.98
-Databases <- readRDS('../prior_knowledge/output/Databases.rds')
-
 RecTF.DB <- Databases$RecTF.DB %>% 
   .[.$score > quantile(.$score, quan.cutoff),] %>%
-  dplyr::distinct(source, target) %>%
-  as.data.frame()
+  dplyr::distinct(source, target)
 
 LigRec.DB <- Databases$LigRec.DB %>%
   dplyr::distinct(source, target) %>%
-  dplyr::filter(target %in% RecTF.DB$source) %>%
-  as.data.frame()
+  dplyr::filter(target %in% RecTF.DB$source)
 
 TFTG.DB <- Databases$TFTG.DB %>%
   dplyr::distinct(source, target) %>%
-  dplyr::filter(source %in% RecTF.DB$target) %>%
-  as.data.frame()
+  dplyr::filter(source %in% RecTF.DB$target)
 
 ## get multi-layer
 
