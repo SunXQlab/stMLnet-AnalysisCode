@@ -1,6 +1,6 @@
 # Modeling spatial intercellular communication and multilayer signaling regulations using stMLnet
 
-## Introduction 
+## Introduction
 Multicellular organisms require intercellular and intracellular signaling to coordinately regulate different cell functions. The technological advance of spatial transcriptomics (ST) lets us leverage spatial information to better elucidate cell signaling and functioning. 
 
 Here, we present stMLnet, a method that infers spatial intercellular communication and multilayer signaling regulations from ST data by quantifying distance-weighted ligand-receptor (LR) signaling activity based on diffusion and mass action models and mapping it to intracellular targets. 
@@ -11,32 +11,31 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
  
 ## Workflow
 
-1. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig2.<br>
-2. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets, corresponding to Fig3-4.<br>
-    * **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
-      - s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
-      - s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
-      - s3_calculate_LRTG_importance.R: train a random forest model to predicte LR-target gene regulation.
-      - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig3B-F.
-    * **giotto_mefish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
-      - **giotto_mefish_dataset_layer3**, **giotto_mefish_dataset_layer6**, **giotto_mefish_dataset_layer9**, **giotto_mefish_dataset_layer12** contains the code to reproduce the plot and analysis on different layers of merfish dataset, corresponding to FigS4.
-      - **giotto_mefish_dataset_layer9**/s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4B-E.
-    * **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
-      - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4G-I.
-3. **apply_in_stBC** contains the code to reproduce plots and benchmarking of the breast cancer dataset, corresponding to Fig5.<br>
-    - s4_compare_method.R: compare the performance of different distance algorithm on breast cancer datasets, corresponding to Fig5.(这部分删掉了？)
-    - s5_compare_software.R: compare the performance of similar software (MISTy, NicheNet, CytoTalk) on breast cancer datasets, corresponding to Fig5F.
-    - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig5B-E.
-    - s7_get_cor.R: calculate the LR-target correlations, responding to FigS6.
-4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset, corresponding to Fig6. <br>
-   - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-D and FigS7.
-   - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk, MISTy) on gliomas dataset, corresponding to Fig6E.
+1. **apply_in_stBC** contains the code to reproduce plots and benchmarking of the breast cancer dataset <br>
+    - s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
+    - s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
+    - s3_calculate_LRTG_importance.R: train a random forest model to predicte LR-target gene regulation.
+    - s4_compare_method.R: compare the performance of different distance algorithm on breast cancer datasets, corresponding to Fig4A.
+    - s5_compare_software.R: compare the performance of similar software (MISTy, NicheNet, CytoTalk) on breast cancer datasets, corresponding to Fig2F.
+    - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig2B-E, FigS3.
+   - s7_get_cor.R: calculate the LR-target correlations,responding to FigS4.
+2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig3. <br>
+3. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
+   - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig7B-C, Fig7F, FigS10.
+   - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig7D, FigS11.
+4. **apply_in_scGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the scRNA-seq dataset <br>
+   - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-C, FigS7.
+   - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk) on gliomas datasets, corresponding to Fig6E.
    - s6_gesaAnalysis.R: GSEA analysis of macrophages and malignnat, corresponding to FigS8.
-5. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset, corresponding to Fig7. <br>
-   - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig7B-C,F and FigS10.
-   - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig7E （这个不确定）.
-
-6. **code** contains all functions of stMLnet to analysis cell-cell interactions. <br>
+5. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets.<br>
+   - **giotto_merfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset.<br>
+      + s0_compare_merfish_results.R: comparison of cell communication in different layers of MERFISH data, corresponding to FigS6.
+      + giotto_merfish_dataset_layer9/s4_visial_CCI.R: various visualizations of the commucation in slide-seq2 dataset, corresponding to Fig5F-H. 
+   - **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on seqfish+ dataset.<br>
+      + s4_visial_CCI.R: various visualizations of the commucation in slide-seq2 dataset, corresponding to Fig4B-E.
+   - **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on slide-seq2 dataset.<br>
+      + s4_visial_CCI.R: various visualizations of the commucation in slide-seq2 dataset, corresponding to Fig5B-C.
+6. **code** contains all functions of stMLnet to analysis cell-cell interactions <br>
 
 ## Databases
 
