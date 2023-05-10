@@ -20,7 +20,13 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
     - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig2B-F.
    - s7_get_cor.R: calculate the LR-target correlations,responding to Fig5 and FigS5.
 2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig4B. <br>
-3. **apply_in_scST** contains the code to reproduce the plota and detailed analysis of the three single-cell resolution ST datasets, merfish, seqfish, slideseq2 respectively<br>
+3. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets (merfish, seqfish, slideseq2 respectively)<br>
+    * **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
+    - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig3B-F.
+    * **giotto_mefish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset<br>
+    - giotto_mefish_dataset/s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4B-E.
+    * **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset, corresponding to Fig4F-I.<br>
+    - s4_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig4G-I.
 4. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig6B-C.
    - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig6D,F and FigS6,S7.
