@@ -16,7 +16,7 @@ library(ggalluvial)
 rm(list = ls())
 gc()
 
-setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/results_TG_limma_logfc1_padj0.1/")
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
 
 source('../code/code.R')
 
@@ -49,7 +49,7 @@ scales::show_col(mycolor_nt)
 ## workdir ##
 #############
 
-plotdir = './visualize_CCI_V2/'
+plotdir = './visualize_CCI/'
 
 #################
 ## NetworkPlot ##
@@ -77,12 +77,12 @@ for (key in colnames(LRTG_detail)[3:8]) {
   tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)]
   colnames(tmeTab) <- c('cell_from','cell_to','n')
   
-  png(paste0("./visualize_CCI_V2/networkPlot_",key,".png"),
+  png(paste0("./visualize_CCI/networkPlot_",key,".png"),
       height = 6,width = 8, units = 'in', res = 300)
   DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
   dev.off()
   
-  pdf(paste0("./visualize_CCI_V2/networkPlot_",key,".pdf"),height = 6,width = 8)
+  pdf(paste0("./visualize_CCI/networkPlot_",key,".pdf"),height = 6,width = 8)
   DrawCellComm(tmeTab,mycolor_ct,gtitle = key)
   dev.off()
   
@@ -119,7 +119,7 @@ scales::show_col(colodb)
 
 downstream <- 'Target'
 gtitle <- 'TAM_TC_IGF1_ITGAV'
-wd <- './visualize_CCI_V2/'
+wd <- './visualize_CCI/'
 # drawMLnetworkPlot_V4(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
 #                      gtitle=gtitle,wd=wd,p_height = 4,p_width = 7)
 drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
@@ -147,7 +147,7 @@ scales::show_col(colodb)
 
 downstream <- 'Target'
 gtitle <- 'TC_TAM_IL34_CSF1R'
-wd <- './visualize_CCI_V2/'
+wd <- './visualize_CCI/'
 # drawMLnetworkPlot_V4(mlnet=MLnet_key,downstream=downstream,
 #                      colodb=colodb,gtitle=gtitle,wd=wd,
 #                      p_height = 4,p_width = 10)
@@ -185,7 +185,7 @@ colodb <- c(mycolor_nt,mycolor_key,mycolor_ct)
 scales::show_col(colodb)
 
 gtitle <- 'TME_Malignant_v3'
-wd = './visualize_CCI_V2/'
+wd = './visualize_CCI/'
 drawAlluviumPlot(df_MLnet_long_check, colodb = colodb, gtitle = gtitle,
                  wd = wd,p_height=5.5, p_width=8)
 
@@ -211,7 +211,7 @@ colodb <- c(mycolor_nt,mycolor_key,mycolor_ct)
 scales::show_col(colodb)
 
 gtitle <- 'TME_Macrophages_v3'
-wd = './visualize_CCI_V2/'
+wd = './visualize_CCI/'
 drawAlluviumPlot(df_MLnet_long_check, colodb = colodb, gtitle = gtitle,
                  wd = wd,p_height=5.5, p_width=8)
 
