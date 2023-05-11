@@ -28,7 +28,7 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
    - **giotto_merfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset.<br>
         + s0_compare_merfish_results.R: comparison of cell communication in different layers of MERFISH data, corresponding to FigS6.
         + giotto_merfish_dataset_layer9/s4_visial_CCI.R: various visualizations of the commucation in merfish dataset, corresponding to Fig5F-H. 
-4. **apply_in_scGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the scRNA-seq dataset <br>
+4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-C, FigS7.
    - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk) on gliomas datasets, corresponding to Fig6E.
    - s6_gesaAnalysis.R: GSEA analysis of macrophages and malignnat, corresponding to FigS8.
