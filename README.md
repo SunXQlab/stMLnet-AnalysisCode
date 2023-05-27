@@ -7,7 +7,7 @@ Here, we present stMLnet, a method that infers spatial intercellular communicati
 
 We demonstrated the applicability of stMLnet on multiple datasets, such as breast cancer and COVID-19 microenvironment. We enchmarked stMLnet's performance using multiple cell line perturbation datasets, synthetic data, and LR-target correlations stratified by cellular distance. Furthermore, we applied stMLnet to a scRNA-seq dataset of gliomas for trying to expand the scope of stMLnet.
 
-The R package of stMLnet is publicly available from <a href="https://github.com/SunXQlab/stMLnet" target="_blank">stMLnet repository</a>. A web-based application of stMLnet is also developed and available at www.stmlnet.top/net. 
+The R package of stMLnet is publicly available from <a href="https://github.com/SunXQlab/stMLnet" target="_blank">stMLnet repository</a>. 
  
 ## Workflow
 
