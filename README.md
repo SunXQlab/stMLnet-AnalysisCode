@@ -47,4 +47,33 @@ Databases used in this paper are stored in `./prior_knowledge/output` folder, in
     
 ## Reproducible run
 
-We provide a reproducible run capsule in <a href="https://codeocean.com/capsule/9121262/tree" target="_blank">CodeOcean</a>, showing the application of stMLnet in SlideSeqV2 dataset. This capsule includes enviorment installation, execuate code and necessary data, taking about 5 hours to set up enviorment and to reproduce related results. (Note: we made minor changes of input and output path in code to adapt in docker images)
+We provide a reproducible run capsule in <a href="https://codeocean.com/capsule/9121262/tree" target="_blank">CodeOcean</a>, showing the application of stMLnet in SlideSeqV2 dataset. This capsule includes enviorment installation, execuate code and necessary data, taking about 1.35 hours to set up enviorment and to reproduce related results. (Note: we made minor changes of input and output path in code to adapt in docker images)
+
+You can reproduce the paper results following the codes, please make sure you have already installed related dependencies:
+
+       # Check if the following dependencies are installed.
+       pkgs <- c('Seurat','SeuratWrappers','Giotto','reshape2','stringr','dplyr', # for data preprocessing
+                        'caret','doParallel','snow','foreach', # for quantitative model
+                         'ggplot2','ggsci','clusterProfiler','org.Hs.eg.db', 'plotrix','ggalluvial','ggraph','igraph' # for visualization
+                         )
+       for (pkg in pkgs) {
+         if (!requireNamespace(pkg)) { cat(paste0('please install and library the package: ',pkg,'\n')) }
+       }
+       
+       # Installing related dependencies.
+       pkgs <- c( 'caret','doParallel','snow','foreach','ggplot2','ggsci','clusterProfiler','org.Hs.eg.db','plotrix','ggalluvial','ggraph','igraph')
+       for (pkg in pkgs) {install.packages(pkg, repos = 'https://cloud.r-project.org')}
+       
+       devtools::install_version("spatstat.core", version = "2.4-4", repos="https://cloud.r-project.org/")
+       devtools::install_version("Seurat", version = "4.0.2", repos="https://cloud.r-project.org/")
+       remotes::install_github("satijalab/seurat-wrappers")
+       remotes::install_github("drieslab/Giotto",  ref="v1.1.0")
+
+If you have problems installing the environment manually, you can also choose to install the dependent environment via dockfile:
+
+       # Bash
+       # built a docker image
+       # ensure that dockerfile and postInstall are in the same path
+       docker bulid -f Dockerfile -t stMLnetEnv:0.1 .
+       # Run docker image
+       docker run -it stMLnetEnv:0.1 /bin/bash
