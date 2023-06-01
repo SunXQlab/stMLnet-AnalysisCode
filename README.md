@@ -45,4 +45,6 @@ Databases used in this paper are stored in `./prior_knowledge/output` folder, in
   - s4_doRWR.R: perform the random walk with restart to obtain the corrected databases.
   - s5_quan.cutoff.R: Using the cell lines databases to optimizate the corrected databases, corresponding to FigS2C.
     
+## Reproducible run
 
+We provide a reproducible run capsule in <a href="https://codeocean.com/capsule/9121262/tree" target="_blank">CodeOcean</a>., showing the application of stMLnet in SlideSeqV2 dataset. This capsule includes enviorment installation, execuate code and necessary data, taking about 5 hours to set up enviorment and to reproduce related results. (Note: we made minor changes of input and output path in code to adapt in docker images)
