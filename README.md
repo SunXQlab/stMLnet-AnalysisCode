@@ -11,17 +11,11 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
  
 ## Workflow
 
-1.  **apply_in_stBC** contains the code to reproduce plots and benchmarking of the breast cancer dataset <br>
-    - s1_runMLnet.R: construct a multilayer signaling network in breast cancer environment.
-    - s2_calculate_LRTG_activity.R: infer LR signling activate based on the expression and distance of ligands and receptor.
-    - s3_calculate_LRTG_importance.R: train a random forest model to predicte LR-target gene regulation.
-    - s4_compare_method.R: compare the performance of different distance algorithm on breast cancer datasets, corresponding to Fig3D.
-    - s5_compare_software.R: compare the performance of similar software (MISTy, NicheNet, CytoTalk) on breast cancer datasets, corresponding to Fig2F.
-    - s6_visualize_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig2B-E, FigS3.
-    - s7_get_cor.R: calculate the LR-target correlations,responding to FigS4.
-2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig3C. <br>
-3. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets.<br>
-    - **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on seqfish+ dataset.<br>
+1. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
+   - s4_visial_CCI.R: various visualizations of the communication in complex environment, corresponding to Fig4A-C.
+   - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig4D, FigS4.
+2. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets.<br>
+   - **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on seqfish+ dataset.<br>
         + s4_visial_CCI.R: various visualizations of the commucation in seqfish+ dataset, corresponding to Fig5A-C.
    - **giotto_merfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset.<br>
         + s0_compare_merfish_results.R: comparison of cell communication in different layers of MERFISH data, corresponding to FigS6.
@@ -29,14 +23,18 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
    - **giotto_slideseq v2_dataset** contains the code to reproduce the plot and detailed analysis on slide-seq v2 dataset.<br>
         + s4_visial_CCI.R: various visualizations of the commucation in slide-seq v2 dataset, corresponding to Fig6B-F.
    - **giotto_Stereoseq_dataset** contains the code to reproduce the plot and detailed analysis on Stereo-seq dataset.<br>
-4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset <br>
-   - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-C, FigS7.
-   - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk, MISTy) on gliomas datasets, corresponding to Fig6E.
-   - s6_gesaAnalysis.R: GSEA analysis of macrophages and malignnat, corresponding to FigS8.
-5. **apply_in_COVID19** contains the code to reproduce plots and detailed analysis of the COVID-19 ST dataset <br>
-   - s4_visial_CCI.R: various visualizations of the commucation in breast cancer environment, corresponding to Fig7B-C, Fig7F, FigS10.
-   - s5_check_feedback_loop.R: visualizations of the positive feedback circuits between AECs, macrophages and monocytes, corresponding to Fig7D, FigS11.
-6. **code** contains all functions of stMLnet to analysis cell-cell interactions <br>
+3. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig3C. <br>
+4. **benchmark** contains the code to reproduce benchmark.<br>
+   - **OtherMethods** contains the code to reproduce the six representative CCC inference methods, including CellChatV2, COMMOT, CytoTalk, MISTy, NicheNet, and Scriabin.<br>
+   - **apply_in_CID** contains the code to reproduce the detailed analysis of stMLnet on breast cancer-1 datasets.<br>
+   - **apply_in_stBC** contains the code to reproduce the detailed analysis of stMLnet on breast cancer-2 dataset.<br>
+   - **apply_in_stGBM** contains the code to reproduce the detailed analysis of stMLnet on Glioma dataset.<br>
+   - s1_ScriptForThreeDataset.R: contains the code to generate close and distant cell groups with different proportions across threee datasets.
+   - s2_calculateMI.R: contains the code to calulate the mutal information, which assesses the correlations between expressions of ligand and receptor in each LR interaction within close or distant group.
+   - s3_calculateDLRC.R: contains the code to calculate the DLRC (differential LR correlation), which assesses the difference of LR correlations in the close and distant cell groups (Fig2B).
+   - s4_calculateAUPRC.R: contains the code to calculate AUPRC using cell line pertubation-expression datasets as ground truth.
+   - S5_pl_AUPRC: visualize the results of AUPRC, corresponding to Fig2C.
+5. **code** contains all functions of stMLnet to analysis cell-cell interactions <br>
 
 ## Databases
 
