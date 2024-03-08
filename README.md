@@ -22,12 +22,13 @@ The R package of stMLnet is publicly available from <a href="https://github.com/
 2. **apply_in_simu** contains the code to reproduce the simulation study of stMLnet, corresponding to Fig3C. <br>
 3. **apply_in_scST** contains the code to reproduce the plot and detailed analysis of the three single-cell resolution ST datasets.<br>
     - **giotto_seqfish_dataset** contains the code to reproduce the plot and detailed analysis on seqfish+ dataset.<br>
-        + s4_visial_CCI.R: various visualizations of the commucation in seqfish+ dataset, corresponding to Fig4B-E.
-    - **giotto_slideseq2_dataset** contains the code to reproduce the plot and detailed analysis on slide-seq2 dataset.<br>
-        + s4_visial_CCI.R: various visualizations of the commucation in slide-seq2 dataset, corresponding to Fig5B-C.
+        + s4_visial_CCI.R: various visualizations of the commucation in seqfish+ dataset, corresponding to Fig5A-C.
    - **giotto_merfish_dataset** contains the code to reproduce the plot and detailed analysis on merfish dataset.<br>
         + s0_compare_merfish_results.R: comparison of cell communication in different layers of MERFISH data, corresponding to FigS6.
-        + giotto_merfish_dataset_layer9/s4_visial_CCI.R: various visualizations of the commucation in merfish dataset, corresponding to Fig5F-H. 
+        + giotto_merfish_dataset_layer6/s2_visial_CCI.R & s3_visial_spatialCCC.R: various visualizations of the communication in merfish dataset, corresponding to Fig5F and Fig5G-J, respectively.
+   - **giotto_slideseq v2_dataset** contains the code to reproduce the plot and detailed analysis on slide-seq v2 dataset.<br>
+        + s4_visial_CCI.R: various visualizations of the commucation in slide-seq v2 dataset, corresponding to Fig6B-F.
+   - **giotto_Stereoseq_dataset** contains the code to reproduce the plot and detailed analysis on Stereo-seq dataset.<br>
 4. **apply_in_stGBM** contains the code to reproduce plots and detailed analysis for appling stMLnet on the gliomas dataset <br>
    - s4_visial_CCI.R: various visualizations of the commucation in gliomas environment, corresponding to Fig6B-C, FigS7.
    - s5_compare_software.R: compare the performance of similar software (NicheNet, CytoTalk, MISTy) on gliomas datasets, corresponding to Fig6E.
