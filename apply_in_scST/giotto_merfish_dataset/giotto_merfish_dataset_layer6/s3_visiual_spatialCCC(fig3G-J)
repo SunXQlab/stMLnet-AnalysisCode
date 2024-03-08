@@ -1,0 +1,265 @@
+library(Giotto)
+library(plotly)
+library(ggplot2)
+library(ggsci)
+
+setwd('/home/yll/cell_cell_interaction/apply_in_scST/MERFISH')
+source(('../code/code.R'))
+
+rm(list = ls())
+gc()
+
+############
+#  color   #
+############
+mycolor_ct <- c( "#A9A9A9",  "#A9A9A9", "#60A2D8","#EB272A",
+                 "#A9A9A9", "#A9A9A9", "#A9A9A9", "#A9A9A9","#A9A9A9" )
+
+names(mycolor_ct) <- c("OD-Mature","OD-Immature","Excitatory","Inhibitory",
+                       "Astrocyte","Endothelial","Ependymal","Microglia","Ambiguous")
+scales::show_col(mycolor_ct)
+
+# nodekey
+
+scales::show_col(pal_locuszoom(palette = "default", alpha = 0.8)(7))
+mycolors_locus <- pal_locuszoom(palette = "default", alpha = 0.8)(7)
+
+nodekey <- c("Ligand","Receptor","TF","Target")
+mycolor_key <- mycolors_locus[1:4]
+names(mycolor_key) <- nodekey
+scales::show_col(mycolor_key)
+
+# nodetype
+
+scales::show_col(pal_locuszoom(palette = "default", alpha = 0.8)(7))
+mycolors_locus <- pal_locuszoom(palette = "default", alpha = 0.8)(7)
+
+nodetype <- c("cell","Sender","Receiver")
+mycolor_nt <- mycolors_locus[1:3]
+names(mycolor_nt) <- nodetype
+scales::show_col(mycolor_nt)
+
+# load dataset
+res_path <- "/home/yll/cell_cell_interaction/stMLnet_cjy/2023.01.26/"
+files <- list.files(res_path)
+
+layer_ID <- c("layer6", "layer7", "layer8", "layer9")
+files <- files[grep(paste(layer_ID, collapse="|"), files)]
+
+plotdir = './visualize/'
+
+layer <- layer_ID[1]
+file = files[grep(layer,files)]
+
+# load data
+data_path = paste0(res_path, file,"/giotto_merfish_output.rda")
+load(data_path)
+
+df_plot <- df_loca %>% rownames_to_column(.,var = "Barcode") %>% merge(.,df_anno,by="Barcode")
+table(df_plot$Cluster)
+
+###########################################
+#    pl cell type spatial distribution    #
+###########################################
+
+pdf(paste0(plotdir,layer, "_Exc_Inh_sp_distr2.pdf"),width = 6,height = 4)
+
+ggplot(df_plot, aes(x = dim.x, y = dim.y,color = Cluster))+
+  geom_point(size=0.4) +
+  scale_color_manual(values = mycolor_ct) +
+  # scale_color_d3(palette = "category20",alpha=0.8)+
+  theme_bw()+
+  theme(panel.border = element_blank(),   
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_blank(), 
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 14,margin = margin(r=10)))
+dev.off()
+
+######################
+## LR activity Plot ##
+######################
+cp <- paste0("Excitatory","_", "Inhibitory")
+LR_pair <- "OXT_OXTR"
+
+inputdir <- paste0(res_path,file,'/runModel/')
+file = list.files(inputdir)[grep(cp,list.files(inputdir))]
+
+LRS_score = readRDS(paste0(inputdir,file))[[1]]
+LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
+
+df_plot$LRscore <- NA
+df_plot$LRscore[which(df_plot$Barcode %in% rownames(LRS_score_merge))] <- LRS_score_merge[,LR_pair]
+df_plot$LRscore[is.na(df_plot$LRscore)] <- 0
+df_plot$gray_point <- df_plot$LRscore == 0
+
+# plot spatial distribution
+p1 <- ggplot(df_plot, aes(x = dim.x, y = dim.y, color = LRscore))+
+  geom_point(size=0.4) +
+  # scale_color_manual(values = c("black", "gray"))+
+  scale_color_gradient(low = "gray", high = "red") +
+  theme_bw()+
+  theme(panel.border = element_blank(),   
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 14,margin = margin(r=10))) 
+
+p1
+
+pdf(paste0(plotdir,layer, "_Exc_Inh_LRsocre_sp_distr.pdf"),width = 5,height = 4)
+p1
+dev.off()
+
+###############
+## MLnetPlot ##
+###############
+
+files <- list.files(res_path)
+file = files[grep(layer,files)]
+             
+inputdir <- paste0(res_path,file,'/runscMLnet/') 
+
+MLnet <- readRDS(paste0(inputdir,"Excitatory_Inhibitory/scMLnet.rds"))
+MLnet$LigRec
+
+LRTG_im <- readRDS(paste0(res_path,file,"/getPIM/LRTG_im_clean_Excitatory_Endothelial.rds"))
+head(LRTG_im[order(LRTG_im$im_norm,decreasing = T),])
+
+Key <- c('OXT')
+Type <- 'Ligand'
+MLnet_key <- prepareMLnetworkPlotData(mlnet=MLnet,lrtg_im=LRTG_im,Key=Key,Type=Type,do.check = T)
+str(MLnet_key)
+
+MLnet_key$TFTar$target <- gsub("OXT","OXT_1",MLnet_key$TFTar$target)
+
+colodb = pal_locuszoom(palette = "default", alpha = 0.5)(4)
+names(colodb) <- nodekey
+scales::show_col(colodb)
+
+downstream <- 'Target'
+gtitle <- 'Excitatory-Inhibitory_Ligand'
+drawMLnetworkPlot(mlnet=MLnet_key,colodb=colodb,downstream = downstream,
+                  gtitle=gtitle,wd=plotdir,p_height = 4.5,p_width = 7)
+
+######################
+#  pl ligand OXT exp #
+######################
+
+Ligand <- "OXT"
+sender <- "Excitatory"
+
+sender_cell <- df_anno$Barcode[df_anno$Cluster == sender]  
+OXT_exp <- df_norm[Ligand,sender_cell]
+
+df_plot <- df_loca %>% rownames_to_column(.,var = "Barcode") %>% merge(.,df_anno,by="Barcode")
+df_plot$OXT_exp <- 0
+
+df_plot$OXT_exp[which(df_plot$Barcode %in% sender_cell)] <- OXT_exp
+
+# plot spatial distribution
+p3 <- ggplot(df_plot, aes(x = dim.x, y = dim.y, color = OXT_exp))+
+  geom_point(size=0.4) +
+  # scale_color_manual(values = c("black", "gray"))+
+  scale_color_gradient(low='gray',high='red') +
+  theme_bw()+
+  theme(panel.border = element_blank(),   
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.line = element_blank(), 
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 14,margin = margin(r=10))) 
+
+p3
+
+# save
+pdf(paste0(plotdir,layer, "_Exc_ligand_OXT_exp.pdf"),width = 5,height = 4)
+p3
+dev.off()
+
+#########################
+#  pl receptor OXTR exp #
+#########################
+
+Receptor <- "OXTR"
+receiver <- "Inhibitory"
+
+receiver_cell <- df_anno$Barcode[df_anno$Cluster == receiver]  
+OXTR_exp <- df_norm[Ligand,sender_cell]
+
+df_plot <- df_loca %>% rownames_to_column(.,var = "Barcode") %>% merge(.,df_anno,by="Barcode")
+df_plot$OXTR_exp <- 0
+
+df_plot$OXTR_exp[which(df_plot$Barcode %in% receiver_cell)] <- OXTR_exp
+
+# plot spatial distribution
+p4 <- ggplot(df_plot, aes(x = dim.x, y = dim.y, color = OXTR_exp))+
+  geom_point(size=0.4) +
+  # scale_color_manual(values = c("black", "gray"))+
+  scale_color_gradient(low='gray',high= "blue") +
+  theme_bw()+
+  theme(panel.border = element_blank(),   
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_blank(), 
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 14,margin = margin(r=10))) 
+
+p4
+
+# save
+pdf(paste0(plotdir,layer, "_Inh_receptor_OXTR_exp.pdf"),width = 5,height = 4)
+p4
+dev.off()
+
+######################
+#  pl target OXT exp #
+######################
+
+LR_score = readRDS(paste0(inputdir,file))[[2]]
+TG <- names(LR_score)
+TG_exp <- LR_score[[1]]
+df_plot <- df_loca %>% rownames_to_column(.,var = "Barcode") %>% merge(.,df_anno,by="Barcode")
+df_plot$OXT_exp <- 0
+
+df_plot$OXT_exp[which(df_plot$Barcode %in% names(TG_exp))] <- TG_exp
+
+# plot spatial distribution
+p5 <- ggplot(df_plot, aes(x = dim.x, y = dim.y, color = OXT_exp))+
+  geom_point(size=0.4) +
+  # scale_color_manual(values = c("black", "gray"))+
+  scale_color_gradient(low='gray',high='purple') +
+  theme_bw()+
+  theme(panel.border = element_blank(),   
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_blank(), 
+        axis.text = element_blank(),  
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 14,margin = margin(r=10))) 
+
+p5
+
+# save
+pdf(paste0(plotdir,layer, "_Inh_target_",TG,"_exp.pdf"),width = 5,height = 4)
+p5
+dev.off()
+
+
+
