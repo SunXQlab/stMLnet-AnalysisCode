@@ -94,25 +94,3 @@ result_record <- list(result=result,
 saveRDS(result_record, file = "./result/result.rds")
 
 
-
-
-# st.se <- GenerateCCIM(st.se, 
-#                       senders = colnames(st.se)[st.se$celltype %notin% "Cancer_Epithelial"],
-#                       receivers = colnames(st.se)[st.se$celltype=="Cancer_Epithelial"])
-# 
-# 
-# used.time = Sys.time() - ptm
-# used.memory <- mem_used()
-# print(as.numeric(used.time, units = "secs"))
-# 
-# LRpair <- rownames(st.se) %>% strsplit(.,"=") %>% do.call(cbind,.) %>% t(.)
-# LRpair <- as.data.frame(LRpair)
-# colnames(LRpair) <- c("Ligand", "Receptor")
-# 
-# result_record <- list(result=LRpair, 
-#                       used_time = paste0(round(used.time/60,3), ' mins'), 
-#                       used_memory =  round(used.memory/1024/1024/1024,3))
-# 
-# saveRDS(result_record, file = "./result/scriabin_result.rds")
-
-
