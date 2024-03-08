@@ -44,7 +44,7 @@ Databases used in this paper are stored in `./prior_knowledge/output` folder, in
   - s2_compare_database.R: comparison of different databases (stMLnet, Omnipath, NicheNet), corresponding to FigS2A.
   - s3_tunepara_database.R: train the hyperparameters of random walk with restart on different databases, corresponding to FigS2B.
   - s4_doRWR.R: perform the random walk with restart to obtain the corrected databases.
-  - s5_quan.cutoff.R: Using the cell lines databases to optimizate the corrected databases, corresponding to FigS2C.
+  - s5_quan.cutoff.R: use the cell lines datasets to optimizate the corrected databases, corresponding to FigS2C.
     
 ## Reproducible run
 
