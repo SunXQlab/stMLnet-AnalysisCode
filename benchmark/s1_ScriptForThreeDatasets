@@ -1,0 +1,158 @@
+library(Seurat)
+library(readr)
+
+rm(list = ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/LRBench/")
+
+source('./R/function.R')
+set.seed(123)
+
+######################
+#  preprocess stGBM  #
+######################
+
+output.path <- paste0('./stGBM/')
+# load stGBM
+input_path <- "/home/yll/data_analysis"
+inputDir <- paste0(input_path,'/data/2022CancerCell/SeuratObj/')
+st_GBM <- readRDS(paste0(inputDir,"304_T.rds"))
+
+count.st <- st_GBM@assays$Spatial@counts
+img <- st_GBM@images$slice1
+
+### load SPOTlight decompositon results
+meta.st <- readRDS("~/cell_cell_interaction/apply_in_stGBM/SPOTlight_decon/UKF_304_T/st_DeconResults.rds")
+meta.st <- meta.st$weights[colnames(st_GBM),]
+meta.st <- na.omit(meta.st) %>% as.data.frame(.)
+meta.st$celltype <- apply(meta.st, 1, function(x){
+  colnames(meta.st)[which.max(x)]
+})
+
+identical(rownames(meta.st), colnames(count.st))
+
+shared.barcode <- intersect(colnames(count.st), rownames(meta.st))
+shared.barcode <- intersect(shared.barcode, rownames(img@coordinates))
+
+meta.st <- meta.st[shared.barcode, ]
+count.st <- count.st[, rownames(meta.st)]
+img <- img[colnames(count.st)]
+DefaultAssay(object = img) <- 'Spatial'
+
+identical(rownames(meta.st), colnames(count.st))
+
+ser <- CreateSeuratObject(count.st, meta.data = meta.st,
+                          min.cells = 1, min.features = 1, 
+                          assay = 'Spatial')
+ser <- SCTransform(ser, assay = "Spatial")
+ser[['image']] <- img
+
+saveRDS(ser, file = paste0(output.path, '/STser.rds'))
+
+close_distant <- CloDistCP(ser)
+saveRDS(close_distant, file = paste0(output.path, '/CloDistCP.rds'))
+
+########################
+#  preprocess CID4465  #
+########################
+
+output.path <- paste0('./CID4465/')
+
+# CID datasets
+img.path <- list.dirs('~/cell_cell_interaction/apply_in_stCID/data/CID4465/10X_visium/spatial')
+matrix.path <- list.dirs('~/cell_cell_interaction/apply_in_stCID/data/CID4465/10X_visium/filtered_count_matrix')
+meta.path <- list.dirs('~/cell_cell_interaction/apply_in_stCID/data/CID4465/decon_results')
+
+count.st <- Read10X(matrix.path, gene.column = 1)
+img <- Read10X_Image(image.dir = img.path) 
+meta.st <- read.delim(paste0(meta.path, '/W.2022-05-15135505.473576.tsv'))
+meta.st <- tibble::column_to_rownames(meta.st, var = "X")
+colnames(meta.st) <- gsub('\\.', '_',colnames(meta.st))
+meta.st$celltype <- apply(meta.st, 1, function(x){
+  colnames(meta.st)[which.max(x)]
+})
+
+shared.barcode <- intersect(colnames(count.st), rownames(meta.st))
+shared.barcode <- intersect(shared.barcode, rownames(img@coordinates))
+
+meta.st <- meta.st[shared.barcode, ]
+count.st <- count.st[, rownames(meta.st)]
+img <- img[colnames(count.st)]
+DefaultAssay(object = img) <- 'Spatial'
+
+identical(rownames(meta.st), colnames(count.st))
+
+ser <- CreateSeuratObject(count.st, meta.data = meta.st,
+                          min.cells = 1, min.features = 1, 
+                          assay = 'Spatial')
+ser <- SCTransform(ser, assay = "Spatial")
+ser[['image']] <- img
+
+ser$celltype <- gsub("B_cells", "B-cells",ser$celltype)
+ser$celltype <- gsub("T_cells", "T-cells",ser$celltype)
+ser$celltype <- gsub("Cancer_Epithelial", "Cancer Epithelial",ser$celltype)
+
+saveRDS(ser, file = paste0(output.path, '/STser.rds'))
+
+close_distant <- CloDistCP(ser)
+saveRDS(close_distant, file = paste0(output.path, '/CloDistCP.rds'))
+
+#####################
+#  preprocess stBC  #
+#####################
+
+output.path <- paste0('./stBC/')
+
+# stBC datasets
+img.path <- list.dirs('~/cell_cell_interaction/stMLnet_cjy/apply_in_stBC/data/10x_visium/Human Breast Cancer (Block A Section 1)/spatial')
+img <- Read10X_Image(image.dir = img.path) 
+
+st.se <- Load10X_Spatial(
+  data.dir = '~/cell_cell_interaction/stMLnet_cjy/apply_in_stBC/data/10x_visium/Human Breast Cancer (Block A Section 1)/',
+  filename = 'V1_Breast_Cancer_Block_A_Section_1_filtered_feature_bc_matrix.h5', 
+  assay = "Spatial",
+  slice = "slice", 
+  filter.matrix = TRUE,
+  to.upper = FALSE)
+
+count.st <- st.se@assays$Spatial@counts
+### load Seurat decompositon results
+meta.st <- read_csv("~/cell_cell_interaction/stMLnet_cjy/apply_in_stBC/preprocess/celltype_predictions.csv")
+meta.st <- column_to_rownames(meta.st, var="...1")
+meta.st <- t(meta.st[1:7,]) %>% as.data.frame(.)
+meta.st$celltype <- apply(meta.st, 1, function(x){
+  colnames(meta.st)[which.max(x)]
+})
+
+identical(rownames(meta.st), colnames(st.se))
+
+shared.barcode <- intersect(colnames(count.st), rownames(meta.st))
+shared.barcode <- intersect(shared.barcode, rownames(img@coordinates))
+
+meta.st <- meta.st[shared.barcode, ]
+count.st <- count.st[, rownames(meta.st)]
+img <- img[colnames(count.st)]
+DefaultAssay(object = img) <- 'Spatial'
+
+identical(rownames(meta.st), colnames(count.st))
+
+ser <- CreateSeuratObject(count.st, meta.data = meta.st,
+                          min.cells = 1, min.features = 1, 
+                          assay = 'Spatial')
+ser <- SCTransform(ser, assay = "Spatial")
+ser[['image']] <- img
+
+saveRDS(ser, file = paste0(output.path, '/STser.rds'))
+
+close_distant <- CloDistCP(ser)
+saveRDS(close_distant, file = paste0(output.path, '/CloDistCP.rds'))
+
+
+
+
+
+
+
+
+
