@@ -1,0 +1,368 @@
+#############
+## library ##
+#############
+
+library(dplyr)
+library(ROCR)
+library(ggplot2)
+library(ggsci)
+library(ggpubr)
+library(tidyverse)
+
+rm(list = ls())
+gc()
+
+###########
+## color ##
+###########
+
+scales::show_col(pal_aaas(palette = "default", alpha = 0.6)(7))
+mycolors_aaas <- pal_aaas(palette = "default", alpha = 0.6)(7)
+
+mycolor_software <- mycolors_aaas[c(1:6)]
+names(mycolor_software) <- c("NicheNet","stMLnet","CytoTalk","MISTy","COMMOT")
+scales::show_col(mycolor_software)
+
+#######################
+## load srBC result  ##
+#######################
+setwd("/home/yll/cell_cell_interaction/apply_in_stBC/OtherMethods")
+source('../R/function.R')
+set.seed(123)
+
+methods_dirs <- list.files(".", full.names = TRUE)
+methods <- list.files(".")
+used_methods <- c('COMMOT','CytoTalk', 'MISTy', 'NicheNet', 'stMLnet')
+index <- which(methods %in% used_methods)
+methods_dirs <- methods_dirs[index]
+methods <- methods[index]
+data_result <- list()
+for (i in seq(methods_dirs)){
+  print(i)
+  res_files <- paste0(methods_dirs[i],"/result/",methods[i],"_score.rds")
+  if(length(res_files)>0){
+    res <- lapply(res_files, function(res_file){
+      res_temp <- readRDS(res_file)
+      if(dim(res_temp)[[1]] != 0){
+        res_temp$methods <- methods[i]
+      }else{
+        res_temp <- NA
+      }
+      res_temp
+    })
+    #names(res) <- methods[i]
+    res[which(is.na(res))] <- NULL
+  }else{
+    res <- NA
+  }
+  data_result[[i]] <- res[[1]]
+}
+names(data_result) <- methods
+data_result[which(is.na(data_result))] <- NULL
+
+## groundtruth
+degs_ls <-readRDS('~/cell_cell_interaction/cellLine/BC_tumor_stBC/degs_ls.rds')
+
+result <- getallmetrics(data_result, degs_ls)
+result[is.na(result)] <- 0
+result1 <- getallrecord(data_result, degs_ls)
+
+# saveRDS(result1, file = "../stBC_record.rds")
+
+## plot figures
+rename_dataset <- function(x){
+  switch(EXPR = x,
+         'GSE54329_IL6_EFM-19_Treatment' = 'GSE54329(1)',
+         'GSE54329_IL6_HCC1428_Treatment' = 'GSE54329(2)',
+         'GSE54329_IL6_MDA-MB-134VI_Treatment' = 'GSE54329(3)',
+         'GSE54329_IL6_MDA-MB-175-VIIdsRed_Treatment' = 'GSE54329(4)',
+         'GSE160990_TGFB1_Treatment' = 'GSE160990',
+         'GSE15893_CXCR4_KO' = 'GSE15893',
+         'GSE157680_NRP1_KO' = 'GSE157680',
+         
+  )
+}
+
+keep_datasets <- c("GSE157680_NRP1_KO","GSE15893_CXCR4_KO","GSE160990_TGFB1_Treatment",
+                   "GSE54329_IL6_EFM-19_Treatment","GSE54329_IL6_HCC1428_Treatment",
+                   "GSE54329_IL6_MDA-MB-134VI_Treatment","GSE54329_IL6_MDA-MB-175-VIIdsRed_Treatment")
+
+result <- result[which(result$celllines %in% keep_datasets),]
+
+result$Dataset <- lapply(result$celllines,rename_dataset) %>% unlist()
+
+result$methods <-factor(result$methods,ordered=TRUE,levels=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet'))
+result$AUROC_label <- gsub('^0$','NA',round(result$AUROC,2))
+result$AUPRC_label  <- gsub('^0$','NA',round(result$AUPRC,2))
+
+saveRDS(result,file="../stBC_AUROC_PRC.rds")
+
+theme_bar <- function(..., bg='white'){
+  require(grid)
+  theme_classic(...) +
+    theme(rect=element_rect(fill=bg),
+          plot.margin=unit(rep(0.5,4), 'lines'),
+          panel.background=element_rect(fill='transparent', color='black'),
+          panel.border=element_rect(fill='transparent', color='transparent'),
+          panel.grid=element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y=element_text(face = "bold",size = 14),
+          axis.text = element_text(face = "bold",size = 14),
+          legend.title=element_blank(),
+          legend.position='top',
+          legend.direction = "horizontal",
+          legend.text = element_text(face = "bold",size = 12,margin = margin(r=20)),
+          legend.background = element_rect( linetype="solid",colour ="black")
+    )
+  
+}
+
+p1 <- ggplot(result, aes(x=Dataset,y=AUPRC,fill=methods)) + 
+  geom_bar(stat="identity",position=position_dodge(0.75),width=0.6) +
+  scale_y_continuous(expand = c(0, 0.01)) + labs(y = 'AUCPRC') +
+  coord_cartesian(ylim=c(-0.02,1.1))+
+  scale_fill_manual(values = mycolor_software, breaks=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet')) + 
+  theme_bar() + #coord_flip() +
+  geom_text(aes(label=AUPRC_label),position=position_dodge(width = 0.8),
+            vjust = 0.5,hjust = -0.1,angle = 90,size = 5) 
+p1
+
+pdf(paste0("../visualize/stBC_barplot_auprc_software.pdf"),
+    width = 13,height = 5)
+p1
+dev.off()
+
+#######################
+##  load CID result  ##
+#######################
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stCID/OtherMethods")
+source('../R/function.R')
+set.seed(123)
+
+# load result
+
+methods_dirs <- list.files(".", full.names = TRUE)
+methods <- list.files(".")
+used_methods <- c('COMMOT','CytoTalk', 'MISTy', 'NicheNet', 'stMLnet')
+index <- which(methods %in% used_methods)
+methods_dirs <- methods_dirs[index]
+methods <- methods[index]
+data_result <- list()
+for (i in seq(methods_dirs)){
+  print(i)
+  res_files <- paste0(methods_dirs[i],"/result/",methods[i],"_score.rds")
+  if(length(res_files)>0){
+    res <- lapply(res_files, function(res_file){
+      res_temp <- readRDS(res_file)
+      if(dim(res_temp)[[1]] != 0){
+        res_temp$methods <- methods[i]
+      }else{
+        res_temp <- NA
+      }
+      res_temp
+    })
+    #names(res) <- methods[i]
+    res[which(is.na(res))] <- NULL
+  }else{
+    res <- NA
+  }
+  data_result[[i]] <- res[[1]]
+}
+names(data_result) <- methods
+data_result[which(is.na(data_result))] <- NULL
+
+## groundtrue
+degs_ls <-readRDS('~/cell_cell_interaction/cellLine/BC_tumor_stCID/degs_ls_p.rds')
+
+result <- getallmetrics(data_result, degs_ls)
+result[is.na(result)] <- 0
+
+result1 <- getallrecord(data_result, degs_ls)
+
+#saveRDS(result1, file = "../CID4465_record.rds")
+
+## plot figures
+rename_dataset <- function(x){
+  switch(EXPR = x,
+         'GSE120268_AXL_KO' = 'GSE120268',
+         'GSE15893_CXCR4_KO' = 'GSE15893',
+         'GSE160990_TGFB1_Treatment' = 'GSE160990',
+         'GSE36051_DLL4_MDA-MB-231_Treatment' = 'GSE36051(1)',
+         'GSE65398_IGF1_Treatment' = 'GSE65398',
+         'GSE7561_IGF1_Treatment' = 'GSE7561',
+         'GSE15893_CXCL12_Treatment' = 'GGSE15893',
+         'GSE36051_DLL4_MCF7_Treatment' = 'GSE36051(2)',
+         'GSE36051_JAG1_MDA-MB-231_Treatment' = 'GSE36051(3)',
+         'GSE157680_NRP1_MDA-MB-231_KO' = 'GSE157680'
+  )
+}
+result$Dataset <- lapply(result$celllines,rename_dataset) %>% unlist()
+
+result$methods <-factor(result$methods,ordered=TRUE,levels=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet'))
+result$AUROC_label <- gsub('^0$','NA',round(result$AUROC,2))
+result$AUPRC_label  <- gsub('^0$','NA',round(result$AUPRC,2))
+
+saveRDS(result,file="../CID4465_AUROC_PRC.rds")
+
+theme_bar <- function(..., bg='white'){
+  require(grid)
+  theme_classic(...) +
+    theme(rect=element_rect(fill=bg),
+          plot.margin=unit(rep(0.5,4), 'lines'),
+          panel.background=element_rect(fill='transparent', color='black'),
+          panel.border=element_rect(fill='transparent', color='transparent'),
+          panel.grid=element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y=element_text(face = "bold",size = 14),
+          axis.text = element_text(face = "bold",size = 14),
+          legend.title=element_blank(),
+          legend.position='top',
+          legend.direction = "horizontal",
+          legend.text = element_text(face = "bold",size = 12,margin = margin(r=20)),
+          legend.background = element_rect( linetype="solid",colour ="black")
+    )
+  
+}
+
+p1 <- ggplot(result, aes(x=Dataset,y=AUPRC,fill=methods)) + 
+  geom_bar(stat="identity",position=position_dodge(0.75),width=0.6) +
+  scale_y_continuous(expand = c(0, 0.01)) + labs(y = 'AUCPRC') +
+  coord_cartesian(ylim=c(-0.02,1.1))+
+  scale_fill_manual(values = mycolor_software, breaks=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet')) + 
+  theme_bar() + #coord_flip() +
+  geom_text(aes(label=AUPRC_label),position=position_dodge(width = 0.8),
+            vjust = 0.5,hjust = -0.1,angle = 90,size = 5) 
+p1
+
+pdf(paste0("../visualize/stCID_barplot_auprc_software.pdf"),
+    width = 14,height = 5)
+p1
+dev.off()
+
+#######################
+##  load GBM result  ##
+#######################
+setwd("/home/yll/cell_cell_interaction/apply_in_stGBM/OtherMethods")
+source('../R/function.R')
+set.seed(123)
+
+methods_dirs <- list.files(".", full.names = TRUE)
+methods <- list.files(".")
+used_methods <- c('COMMOT','CytoTalk', 'MISTy', 'NicheNet', 'stMLnet')
+index <- which(methods %in% used_methods)
+methods_dirs <- methods_dirs[index]
+methods <- methods[index]
+data_result <- list()
+for (i in seq(methods_dirs)){
+  print(i)
+  res_files <- paste0(methods_dirs[i],"/result/",methods[i],"_score.rds")
+  if(length(res_files)>0){
+    res <- lapply(res_files, function(res_file){
+      res_temp <- readRDS(res_file)
+      if(dim(res_temp)[[1]] != 0){
+        res_temp$methods <- methods[i]
+      }else{
+        res_temp <- NA
+      }
+      res_temp
+    })
+    #names(res) <- methods[i]
+    res[which(is.na(res))] <- NULL
+  }else{
+    res <- NA
+  }
+  data_result[[i]] <- res[[1]]
+}
+names(data_result) <- methods
+data_result[which(is.na(data_result))] <- NULL
+
+## groundtrue
+VehEP_TAM <- readRDS('~/cell_cell_interaction/apply_in_stGBM/2016Science/TGs_list_limma-cpm_logfc1_pval0.1.rds') 
+degs <- VehEP_TAM$degs
+
+DEGs_ls = VehEP_TAM
+
+result <- list()
+for (i in 1:length(data_result)){
+  res <- data_result[[i]]
+  res$regulon <- as.character(res$regulon)
+  res$target <- as.character(res$target)
+  res$value <- as.numeric(res$value)
+  
+  if(grepl('NicheNet', res$methods[1])){
+    score <- res %>% filter(regulon == "CSF1")
+  }else if(grepl('CytoTalk', res$methods[1])){
+    score <- res %>% filter(regulon == 'Csf1r' & type == 'Receptor')
+  }else{
+    score <- res %>% filter(regulon == 'CSF1R' & type == 'Receptor')
+  }     
+  
+  gene <- intersect(score$target,rownames(DEGs_ls$DEGs))
+  pred <- score$value[match(gene,score$target)]
+  label <- gene %in% DEGs_ls$degs
+  res.tmp <- get_evaluate_metrics(pred,label)
+  res.tmp <- res.tmp$perf_metrics
+  
+  if(length(names(table(label))) == 2){
+    AUPRCRatios <- res.tmp[2]/(as.numeric(table(label)['TRUE'])/length(label))
+    names(AUPRCRatios) <- 'AUPRCRatios'
+  }else{
+    AUPRCRatios <- NA
+    names(AUPRCRatios) <- 'AUPRCRatios'
+  }
+  res.tmp <- append(res.tmp, AUPRCRatios)
+  result[[res$methods[1]]] <- res.tmp
+}
+
+result <- do.call(rbind, result) %>% as.data.frame() %>% 
+  tibble::rownames_to_column(., 'methods')
+result$methods <- gsub('\\.[0-9]+', '', result$methods)
+result[is.na(result)] <- 0
+result$celllines <- "CSF1R_TAM"
+
+# plot 
+result$Dataset <- "CSF1R_TAM"
+result$AUROC_label <- gsub('^0$','NA',round(result$AUROC,2))
+result$AUPRC_label  <- gsub('^0$','NA',round(result$AUPRC,2))
+
+#saveRDS(result,"./GBM_304_T_AUROC_PRC.rds")
+
+theme_bar <- function(..., bg='white'){
+  require(grid)
+  theme_classic(...) +
+    theme(rect=element_rect(fill=bg),
+          plot.margin=unit(rep(0.5,4), 'lines'),
+          panel.background=element_rect(fill='transparent', color='black'),
+          panel.border=element_rect(fill='transparent', color='transparent'),
+          panel.grid=element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y=element_text(face = "bold",size = 14),
+          axis.text = element_text(face = "bold",size = 14),
+          legend.title=element_blank(),
+          legend.position='top',
+          legend.direction = "horizontal",
+          legend.text = element_text(face = "bold",size = 12,margin = margin(r=10)),
+          legend.background = element_rect(linetype="solid",colour ="black")
+    )
+  
+}
+
+p1 <- ggplot(result, aes(x=Dataset,y=AUPRC,fill=methods)) + 
+  geom_bar(stat="identity",position=position_dodge(1),width=0.7) +
+  scale_y_continuous(expand = c(0, 0.01)) + labs(y = 'AUCPRC') +
+  coord_cartesian(ylim=c(-0.02,1.1))+
+  scale_fill_manual(values = mycolor_software, breaks=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet')) + 
+  theme_bar() + #coord_flip() +
+  geom_text(aes(label=AUPRC_label),position=position_dodge(width = 1),
+            vjust = -0.5,size = 5) 
+p1
+
+pdf(paste0("../visualize/stGBM_barplot_auprc_software.pdf"),
+    width = 7,height = 4)
+p1
+dev.off()
+
+
+
+
