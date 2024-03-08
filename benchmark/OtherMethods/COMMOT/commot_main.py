@@ -16,13 +16,11 @@ import matplotlib.pyplot as plt
 import commot as ct
 
 current_dir = os.getcwd()
-print("当前路径:", current_dir)
+print("current path:", current_dir)
 
 def show_info(start):
     pid = os.getpid()
-    #模块名比较容易理解：获得当前进程的pid
     p = psutil.Process(pid)
-    #根据pid找到进程，进而找到占用的内存值
     info = p.memory_full_info()
     memory = info.uss/1024/1024/1024
     return memory
@@ -67,7 +65,7 @@ ct.tl.spatial_communication(adata_dis500, database_name='cellchat',
                             df_ligrec=df_cellchat_filtered,
                             dis_thr=500,
                             heteromeric=True,
-                            pathway_sum=True) # 是否对每个通路中的LR求和
+                            pathway_sum=True) 
 
 ct.tl.communication_direction(adata_dis500, database_name='cellchat', pathway_name=None, k=5)
 adata_dis500.write(res_path +'adata_pw.h5ad')
