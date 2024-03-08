@@ -1,0 +1,103 @@
+#############
+## library ##
+#############
+
+library(Matrix)
+library(dplyr)
+library(parallel)
+library(Seurat)
+library(lobstr)
+
+rm(list=ls())
+gc()
+setwd("/home/yll/cell_cell_interaction/apply_in_scST/StereoSeq/")
+
+source('./code/code.R')
+
+###############
+## get MLnet ##
+###############
+ptm = Sys.time()
+
+## load ####
+
+# load('./input/seurat_stereoseq_E1S3_logc0.25_pct0.1_output.rda')
+load('./input/downsp_ct_50_seurat_E1S3_logc0.25_pct0.1_output.rda')
+Databases <- readRDS('./prior_knowledge/Databases.rds')
+df_anno$Cluster <- gsub("Mid-/hindbrain and spinal cord neuron","Mid hindbrain and spinal cord neuron", df_anno$Cluster)
+## data
+
+GCMat <- df_norm
+BarCluTable <- df_anno
+clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
+clusters
+
+Ligs_up_list <- Ligs_expr_list
+names(Ligs_up_list) <- gsub("Mid-/hindbrain and spinal cord neuron","Mid hindbrain and spinal cord neuron", names(Ligs_up_list))
+names(Recs_expr_list) <- gsub("Mid-/hindbrain and spinal cord neuron","Mid hindbrain and spinal cord neuron", names(Recs_expr_list))
+names(ICGs_list) <- gsub("Mid-/hindbrain and spinal cord neuron","Mid hindbrain and spinal cord neuron", names(ICGs_list))
+
+str(Ligs_up_list)
+str(Recs_expr_list)
+str(ICGs_list)
+
+## parameters
+ptm = Sys.time()
+wd <- paste0("./runscMLnet/")
+dir.create(wd,recursive = T)
+
+## database ####
+
+quan.cutoff = 0.98
+
+RecTF.DB <- Databases$RecTF.DB %>% 
+  .[.$score > quantile(.$score, quan.cutoff),] %>%
+  dplyr::distinct(source, target)
+
+LigRec.DB <- Databases$LigRec.DB %>%
+  dplyr::distinct(source, target) %>%
+  dplyr::filter(target %in% RecTF.DB$source)
+
+TFTG.DB <- Databases$TFTG.DB %>%
+  dplyr::distinct(source, target) %>%
+  dplyr::filter(source %in% RecTF.DB$target)
+
+## get multi-layer
+
+wd <- './runscMLnet/'
+for(RecClu in clusters){
+  
+  LigClus = clusters[clusters != RecClu]
+  Output <- matrix(ncol = length(LigClus), nrow = 10) %>% as.data.frame()
+  MLnet_list <- list()
+  
+  for(i in 1:length(LigClus)){
+    
+    LigClu <- LigClus[i]
+    MLnet <- mainfunc(LigClu, RecClu, wd)
+    MLnet_list[[i]] <- MLnet
+    Output[,i] <- c(Ligs_up_list[[LigClu]] %>% length(),
+                    Recs_expr_list[[RecClu]] %>% length(),
+                    ICGs_list[[RecClu]] %>% length(),
+                    nrow(MLnet$LigRec),nrow(MLnet$RecTF),nrow(MLnet$TFTar),
+                    ifelse(nrow(MLnet$LigRec)==0,0,MLnet$LigRec$source %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$LigRec)==0,0,MLnet$LigRec$target %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$TFTar)==0,0,MLnet$TFTar$source %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$TFTar)==0,0,MLnet$TFTar$target %>% unique() %>% length()))
+    
+    
+  }
+  names(MLnet_list) <- paste(LigClus,RecClu,sep = "_")
+  colnames(Output) <- paste(LigClus,RecClu,sep = "_")
+  rownames(Output) <- c('Lig_bk','Rec_bk','ICG_bk',
+                        "LRpair","RecTFpair","TFTGpair",
+                        "Ligand", "Receptor", "TF", "TG")
+  
+  write.csv(Output, file = paste0(wd,"/TME_",RecClu,".csv"))
+  
+}
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
