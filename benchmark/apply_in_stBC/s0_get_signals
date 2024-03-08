@@ -1,0 +1,108 @@
+#############
+## library ##
+#############
+
+library(Matrix)
+library(dplyr)
+library(Seurat) # V3.6.2
+library(hdf5r)
+library(ggsci)
+library(ggpubr)
+library(ggplot2)
+
+rm(list = ls())
+gc()
+
+setwd("E:/stMLnet/apply_in_stBC/")
+
+###########
+## color ##
+###########
+
+scales::show_col(pal_nejm(palette = "default", alpha = 1)(8))
+mycolors_nejm <- pal_nejm(palette = "default", alpha = 1)(8)
+
+##############
+### Seurat ###
+##############
+## sc data ####
+
+sc_count <- read.table("./data/2018NatComm/GSE118389_counts_rsem.txt.gz")
+sc_pd <- read.csv("./data/2018NatComm/cell_types_tab.csv", row.names = 1, stringsAsFactors = F)
+
+sc_count <- sc_count[,sc_pd$Sample]
+sc_bc <- CreateSeuratObject(counts = sc_count)
+sc_bc$celltype = sc_pd$celltype[match(colnames(sc_count),sc_pd$Sample)]
+sc_bc$patient = sc_pd$Sample[match(colnames(sc_count),sc_pd$Sample)]
+sc_bc$patient = strsplit(sc_bc$patient,'_') %>% do.call('rbind',.) %>% .[,1]
+
+sc_bc = SCTransform(sc_bc, verbose = FALSE)
+sc_bc = FindVariableFeatures(sc_bc, verbose = FALSE)
+sc_bc = ScaleData(sc_bc, verbose = FALSE)
+sc_bc = RunPCA(sc_bc, verbose = FALSE)
+sc_bc = FindNeighbors(sc_bc, reduction = "pca", dims = 1:30)
+sc_bc = FindClusters(sc_bc, verbose = FALSE)
+sc_bc = RunUMAP(sc_bc, dims = 1:30)
+
+mycolor_ct <- mycolors_nejm[1:length(unique(sc_bc$celltype))]
+names(mycolor_ct) <- unique(sc_bc$celltype)
+p1 <- DimPlot(sc_bc, reduction = "umap", group.by = "celltype", cols = mycolor_ct, pt.size = 1.5)
+p2 <- DimPlot(sc_bc, reduction = "umap", group.by = "patient", pt.size = 1.5) 
+
+png("./preprocess/sc_celltype_process.png", width = 9, height = 4, units = 'in', res = 600)
+p1 + p2
+dev.off()
+
+pdf("./preprocess/sc_celltype_process.pdf", width = 9, height = 4)
+p1 + p2
+dev.off()
+
+saveRDS(sc_bc,"./input/sc_bc.rds")
+
+## st data ####
+
+st_bc_A <-Load10X_Spatial(
+  data.dir = './data/10x_visium/Human Breast Cancer (Block A Section 1)/',
+  filename = 'V1_Breast_Cancer_Block_A_Section_1_filtered_feature_bc_matrix.h5', 
+  assay = "Spatial",
+  slice = "slice", 
+  filter.matrix = TRUE,
+  to.upper = FALSE 
+)
+
+st_bc_A <- SCTransform(st_bc_A, assay = "Spatial", return.only.var.genes = FALSE, verbose = FALSE)
+st_bc_A <- FindVariableFeatures(st_bc_A, verbose = FALSE)
+st_bc_A <- RunPCA(st_bc_A, assay = "SCT", verbose = FALSE)
+st_bc_A <- FindNeighbors(st_bc_A, reduction = "pca", dims = 1:30)
+st_bc_A <- FindClusters(st_bc_A, verbose = FALSE)
+st_bc_A <- RunUMAP(st_bc_A, reduction = "pca", dims = 1:30)
+
+## label transfer
+
+anchors <- FindTransferAnchors(reference = sc_bc, query = st_bc_A, 
+                               normalization.method = "SCT")
+predictions.assay <- TransferData(anchorset = anchors, 
+                                  refdata = sc_bc$celltype, 
+                                  prediction.assay = TRUE, 
+                                  weight.reduction = st_bc_A[["pca"]])
+st_bc_A[["predictions"]] <- predictions.assay
+write.csv(predictions.assay@data,"./preprocess/celltype_predictions.csv")
+
+# cutoff
+st_bc_A$predicted.id <- GetTransferPredictions(st_bc_A, assay = "predictions", score.filter = 0.2)
+Idents(st_bc_A) <- "predicted.id"
+p = SpatialDimPlot(st_bc_A, ncol = length(unique(sc_bc$celltype)), pt.size.factor = 2,
+                   cells.highlight = CellsByIdentities(object = st_bc_A),
+                   facet.highlight = TRUE)
+p
+ggsave(p, filename = "preprocess/st_bc_A_define_celltype.png", width = 15, height = 15)
+
+# check
+DefaultAssay(st_bc_A) <- "predictions"
+p <- SpatialFeaturePlot(st_bc_A, features = rownames(predictions.assay)[1:7], 
+                        pt.size.factor = 2, ncol = length(unique(sc_bc$celltype)), crop = TRUE)
+p
+ggsave(p, filename = "preprocess/st_bc_A_pred_celltype.png", width = 15, height = 15)
+
+# save
+saveRDS(st_bc_A, "./input/st_bc_A.rds")
