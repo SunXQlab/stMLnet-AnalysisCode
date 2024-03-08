@@ -1,0 +1,57 @@
+library(tradeSeq)
+library(clusterExperiment)
+library(readr)
+library(Seurat)
+library(tibble)
+
+rm(list=ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stCID/OtherMethods/COMMOT/")
+
+### load stBC data
+st.se <- readRDS("/home/yll/cell_cell_interaction/LRBench/CID4465/STser.rds")
+cell_weight <- read_csv("result/cell_weight.csv", col_names = FALSE) %>% as.matrix(.)
+comm_sum <- read_csv("result/comm_sum.csv", col_names = FALSE) %>% as.matrix(.)
+
+# select maligant spot
+sub.st.se <- st.se[,which(st.se@meta.data$celltype=="Cancer Epithelial")]
+st_count <- sub.st.se@assays$Spatial@counts 
+pseudoTime <- comm_sum[which(st.se@meta.data$celltype=="Cancer Epithelial")]
+cellWeight <- cell_weight[which(st.se@meta.data$celltype=="Cancer Epithelial")]
+
+sce <- fitGAM(counts=st_count, pseudotime=pseudoTime, cellWeights=cellWeight, nknots=6, verbose=TRUE)
+assoRes <- data.frame(associationTest(sce, global=FALSE, lineage=TRUE))
+assoRes[is.nan(assoRes[,"waldStat_1"]),"waldStat_1"] <- 0.0
+assoRes[is.nan(assoRes[,"df_1"]),"df_1"] <- 0.0
+assoRes[is.nan(assoRes[,"pvalue_1"]),"pvalue_1"] <- 1.0
+assoRes <- na.omit(assoRes)
+df_assoRes = assoRes # 在python中变为panda
+colnames(df_assoRes) <- c("waldStat", "df", "pvalue","V4")
+df_assoRes <- df_assoRes[,-4]
+
+assoRes = assoRes[assoRes[,"pvalue_1"] <= 0.05,]
+oAsso <- order(assoRes[,"waldStat_1"], decreasing=TRUE)
+n_deg_genes = dim(df_assoRes)[1]
+
+inter_genes = intersect(rownames(sce),rownames(assoRes)[oAsso][1:min(n_deg_genes,length(oAsso))])
+
+genes = rownames(assoRes)[oAsso][1:min(n_deg_genes,length(oAsso))]
+
+# cluster the data
+clusPat <- clusterExpressionPatterns(sce, nPoints = 50, verbose=TRUE, 
+                                     genes = genes,k0s=4:5, alphas=c(0.1))
+
+yhatScaled <- data.frame(clusPat$yhatScaled)
+
+saveRDS(df_assoRes, file="./downstream_analysis/df_assoRes.rds")
+saveRDS(yhatScaled, file="./downstream_analysis/yhatScaled.rds")
+
+write.table(df_assoRes,file=paste0('./downstream_analysis/df_assoRes.csv'),
+            sep = ",",row.names = TRUE,col.names = TRUE)
+write.table(yhatScaled,file=paste0('./downstream_analysis/df_yhat.csv'),
+            sep = ",",row.names = TRUE,col.names = TRUE)
+
+
+
+
