@@ -15,7 +15,7 @@ rm(list = ls())
 gc()
 
 setwd("~/cell_cell_interaction/apply_in_stCID/OtherMethods/stMLnet")
-source("./code/code.R)
+source(file="/home/yll/data_analysis/apply_GSE84465/R/s6_calculate_cts_fun.R")
 
 # load sc data
 sc_count <- Read10X('~/cell_cell_interaction/apply_in_stCID/data/CID4465/scRNA_seq/CID4465_RNA/',
