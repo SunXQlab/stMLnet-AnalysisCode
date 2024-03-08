@@ -1,0 +1,270 @@
+#############
+## library ##
+#############
+
+library(spacexr)
+library(Matrix)
+library(dplyr)
+library(Seurat) # V4.0.2
+#library(RCTD)
+library(Giotto)
+library(ggsci)
+library(ggpubr)
+library(ggplot2)
+library(SeuratWrappers) # for imputation 
+library(parallel)
+library(SPATA2)
+
+rm(list = ls())
+gc()
+
+setwd("~/cell_cell_interaction/apply_in_stGBM/UKF_304_T/")
+source(file="/home/yll/data_analysis/apply_GSE84465/R/s6_calculate_cts_fun.R")
+
+# load sc data
+
+sc_GBM <- readRDS("~/cell_cell_interaction/apply_in_stGBM/sc_GBM_GSE84465.rds")
+sc_GBM <- subset(sc_GBM, idents = 'neurons', invert = TRUE)
+# sc_GBM <- subset(sc_GBM, subset = nFeature_RNA > 500)
+# sc_GBM <- subset(sc_GBM, subset = nCount_RNA > 1000)
+
+sc_count <- sc_GBM@assays$RNA@counts
+sc_count <- round(sc_count) # sc_count must contain integers
+cell_type <- factor(sc_GBM$orig.annotation) #must be factor
+
+cell_type_info <- RCTD::get_cell_type_info(sc_count,cell_type, nUMI = sc_GBM$nCount_RNA)
+
+# reference 
+
+names(cell_type) <- colnames(sc_count)
+reference <- Reference(counts=sc_count, cell_types=cell_type, nUMI=NULL) #generate reference object
+
+# load ST data
+
+input_path <- "/home/yll/data_analysis"
+inputDir <- paste0(input_path,'/data/2022CancerCell/SpataObjectData/')
+st_object <- readRDS(paste0(inputDir,"304_T.RDS"))
+
+spatial_loc <- getCoordsDf(st_object)
+spatial_loc <- column_to_rownames(spatial_loc, var = 'barcodes')
+
+st_GBM <- transformSpataToSeurat(object = st_object)
+st_GBM <- subset(st_GBM, subset = nFeature_Spatial > 100)
+st_count <- st_GBM@assays$Spatial@counts
+
+# SPOTlight deconvolution results
+
+results <- readRDS("~/cell_cell_interaction/apply_in_stGBM/SPOTlight_decon/UKF_304_T/st_DeconResults.rds")
+results_df <- results$results_df[colnames(st_GBM),]
+results_df <-  na.omit(results_df)
+  
+st_GBM <- st_GBM[,rownames(results_df)]
+
+## imputation ####
+
+set.seed(4321)
+seur <- RunALRA(st_GBM)
+st_count_imp <- seur@assays$Spatial@counts
+spot_coords <- st_GBM@images$slice1@coordinates[,2:3]
+spaceRNA <- SpatialRNA(coords=spot_coords, counts=st_count_imp, nUMI=NULL)
+
+## creat RCTD object ###
+
+my_RCTD <- create.RCTD(spaceRNA, reference)
+
+weights_doublet <- results$weights_doublet %>% as.data.frame(.)
+weights_doublet <- weights_doublet[colnames(st_GBM), ]
+
+# RCTD calculated CTS
+gene_list <- rownames(st_GBM)
+
+library(doParallel)
+cl <- makeCluster(15)
+registerDoParallel(cl)
+start.time <- Sys.time()
+DEG_second <- foreach(x = gene_list,.combine='cbind', .packages = 'spacexr') %dopar% {
+  g <- x
+  gene_cts <- get_decomposed_data(results_df,g,spaceRNA,weights_doublet,cell_type_info)
+  return(gene_cts)
+}
+stopCluster(cl)
+end.time <- Sys.time()
+saveRDS(DEG_second,file="./SPOTlight_DGE_second.rds")
+
+## input for downstream analysis
+de_cell_type = data.frame(Barcode = rownames(results_df),Cluster = results_df$first_type)
+de_count = t(DEG_first)
+de_coords <- my_RCTD@spatialRNA@coords[rownames(results_df), c("x", "y")]
+
+# de_cell_type = de_cell_type[which(! de_cell_type$Cluster %in% "oligodendrocytes"), ] 
+# de_count = de_count[de_cell_type$Barcode,]
+# de_count = t(de_count)
+# de_coords = de_coords[de_cell_type$Barcode, ]
+save(de_count, de_cell_type, de_coords, my_RCTD, file = "./output_stGBM.RData")
+
+
+### Create a Seurat object 
+de_count <- na.omit(de_count)
+genes_0_sc <- which(! rowSums(de_count == 0) == ncol(de_count))
+de_count <- de_count[genes_0_sc, ] 
+dim(de_count)
+rownames(de_cell_type) <- de_cell_type$Barcode
+seur <- CreateSeuratObject(counts = de_count, meta.data = de_cell_type, 
+                           assay = "Spatial")
+Idents(seur) <- seur$Cluster
+
+## DEGs ####
+
+logfc.ct = 2
+padj.ct = 0.05
+min.pct = 0.1
+
+seur@active.ident
+seur@active.assay
+df_DEGs <- FindAllMarkers(seur, logfc.threshold = 0.25, min.pct = 0.1,assay = "Spatial")
+saveRDS(df_DEGs, 'input/df_DEGs.rds') # All DEGs
+
+DEGs_list <- df_DEGs[abs(df_DEGs$avg_log2FC)>=logfc.ct & 
+                       df_DEGs$p_val_adj<=padj.ct &
+                       df_DEGs$pct.1 >= min.pct,]
+DEGs_list <- split(DEGs_list$gene,DEGs_list$cluster) # 按照cluster divides genes
+str(DEGs_list)
+saveRDS(DEGs_list, "./input/DEGs_lists.rds") # selecting DEGs
+
+###############
+## LigFilter ##
+###############
+
+## load
+st_GBM_A <- st_GBM
+load(file = "./input/output_bc.RData")
+
+## check
+head(de_cell_type)
+de_cell_type$Barcode <- de_cell_type$Barcode %>% as.character() %>% gsub('[.]','-',.)
+
+head(de_coords)
+rownames(de_coords) <- rownames(de_coords) %>% as.character() %>% gsub('[.]','-',.)
+
+dim(de_count)
+colnames(de_count) <- colnames(de_count) %>% as.character() %>% gsub('[.]','-',.)
+
+## update Seurat object
+
+DefaultAssay(st_GBM_A) <- 'Spatial'
+st_GBM_A_SPOT <- subset(st_GBM_A, 
+                       cells = de_cell_type$Barcode %>% as.character(),
+                       features = rownames(de_count))
+st_GBM_A_SPOT[['SPOT']] <- CreateAssayObject(counts = de_count)
+st_GBM_A_SPOT$SPOT_cellType <- de_cell_type$Cluster[match(rownames(st_GBM_A_SPOT@meta.data),
+                                                         de_cell_type$Barcode)]
+DefaultAssay(st_GBM_A_SPOT) <- 'SPOT'
+Idents(st_GBM_A_SPOT) <- st_GBM_A_SPOT$SPOT_cellType
+
+## ligands
+Databases <- readRDS('../prior_knowledge/Databases.rds')
+ligs_in_db <- Databases$LigRec.DB$source %>% unique()
+ligs_in_db <- intersect(ligs_in_db, rownames(st_GBM_A_SPOT))
+
+clusters <- st_GBM_A_SPOT@active.ident %>% as.character() %>% unique()
+df_markers_ligs <- lapply(clusters, function(cluster){
+  
+  df <- FindMarkers(st_GBM_A_SPOT, ident.1 = cluster, features = ligs_in_db, 
+                    only.pos = T, 
+                    logfc.threshold = 0.0005, 
+                    min.pct = 0.0005) # min.pct=0.05才会有IL6
+  df$gene <- rownames(df)
+  df$ident.1 <- cluster
+  df
+  
+}) %>% do.call('rbind',.)
+
+Ligs_up_list <- split(df_markers_ligs$gene,df_markers_ligs$ident.1)
+str(Ligs_up_list)
+
+saveRDS(Ligs_up_list, "./input/10X_stGBM_Ligs_up.rds")
+
+###############
+## RecFilter ##
+###############
+
+############
+## Giotto ##
+############
+
+temp_dir = './preprocess/'
+myinstructions = createGiottoInstructions(save_dir = temp_dir,
+                                          save_plot = TRUE, 
+                                          show_plot = TRUE,
+                                          python_path = "/usr/bin/python3")
+gio_stGBM <- createGiottoObject(raw_exprs = de_count,
+                                spatial_locs = de_coords,
+                                instructions = myinstructions)
+
+gio_stGBM <- addCellMetadata(gobject = gio_stGBM, 
+                             new_metadata = de_cell_type$Cluster, 
+                             vector_name = "celltype")
+
+### normalize
+gio_stGBM <- normalizeGiotto(gio_stGBM)
+gio_stGBM <- addStatistics(gobject = gio_stGBM)
+
+### create a spatial Delaunay network (default)
+gio_stGBM = createSpatialNetwork(gobject = gio_stGBM, method = "Delaunay")
+spatPlot(gobject = gio_stGBM, show_network = T, legend_symbol_size = 2,
+         network_color = 'blue', spatial_network_name = 'Delaunay_network',
+         point_size = 2.5, cell_color = 'celltype')
+
+saveRDS(gio_stGBM, file = "./input/giotto_stGBM.rds")
+
+## load
+gio_stGBM <- readRDS("./input/giotto_stGBM.rds")
+data <- gio_stGBM@norm_expr
+BarCluTable <- gio_stGBM@cell_metadata[,1:2]
+colnames(BarCluTable) <- c('Barcode','Cluster')
+
+## 参数
+expr.ct <- 0.1
+pct.ct <- 0.05
+
+## 载入LigRec数据库
+Databases <- readRDS('./prior_knowledge/Databases.rds')
+recs_in_db <- Databases$LigRec.DB$target %>% unique()
+
+## 计算mean和pct
+clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
+
+meanExpr_of_LR <- lapply(clusters, function(cluster){
+  
+  cluster.ids <- BarCluTable$Barcode[BarCluTable$Cluster == cluster]
+  source_mean <- rowMeans(data[,cluster.ids])
+  names(source_mean) <- rownames(data)
+  source_mean
+  
+}) %>% do.call('cbind',.) %>% as.data.frame()
+colnames(meanExpr_of_LR) <- clusters
+
+pct_of_LR <- lapply(clusters, function(cluster){
+  
+  cluster.ids <- BarCluTable$Barcode[BarCluTable$Cluster == cluster]
+  dat <- data[,cluster.ids]
+  pct <- rowSums(dat>0)/ncol(dat)
+  names(pct) <- rownames(data)
+  pct
+  
+}) %>% do.call('cbind',.) %>% as.data.frame()
+colnames(pct_of_LR) <- clusters
+
+Recs_expr_list <- lapply(clusters, function(cluster){
+  
+  recs <- rownames(data)[meanExpr_of_LR[,cluster] >= expr.ct & pct_of_LR[,cluster] >= pct.ct]
+  intersect(recs, recs_in_db)
+  
+})
+names(Recs_expr_list) <- clusters
+str(Recs_expr_list)
+
+saveRDS(Recs_expr_list, "./input/10X_stGBM_Recs_expr.rds")
+
+
+
