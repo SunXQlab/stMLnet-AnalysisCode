@@ -1,0 +1,66 @@
+rm(list = ls())
+library(CytoTalk)
+library(lobstr)
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stBC/OtherMethods/CytoTalk/")
+
+source("./read_matrix_with_meta.R")
+
+ptm = Sys.time()
+
+fpath.mat <- paste0("./input/stBC_norm_count.txt")
+fpath.meta <- paste0("./input/stBC_meta.txt")
+lst.sc <- read_matrix_with_meta(fpath.mat, fpath.meta)
+celltype <- unique(lst.sc$cell_types)
+
+result_CytoTalk <- list()
+for (sender in celltype) {
+  reciever <- "macrophages"
+  for(reciever in celltype){
+    print(paste(sender, reciever, sep = "_"))
+    results <- tryCatch(CytoTalk::run_cytotalk(lst.sc, sender, reciever, cores = 30, cutoff_a = 0.05, cutoff_b = 0.05),
+                        error=function(e){NA}
+    )
+    cp <- paste(sender, reciever, sep = "_")
+    result_CytoTalk[[cp]] <- results
+  }
+}
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
+
+# precessing result
+species = 'human'
+
+result <- result_CytoTalk
+rm(result_CytoTalk)
+
+result <- lapply(result, function(res){res$pcst$final_network})
+result <- do.call(rbind, result)
+result <- result[which(result$node1_type!=result$node2_type),]
+if (species=='human') {
+  result$node1 <- toupper(result$node1)
+  result$node2 <- toupper(result$node2)
+  result$node1 <- gsub("ORF", "orf", result$node1)
+  result$node2 <- gsub("ORF", "orf", result$node2)
+}
+result <- result[,c(1:4,10)]
+colnames(result) <- c('Ligand', 'Receptor', 'Sender', 'Receiver', 'LRscore')
+result$all <- paste(result$Sender, result$Ligand, result$Receiver, result$Receptor, sep = '_')
+result <- dplyr::distinct(result, all, .keep_all = TRUE)
+rownames(result) <- NULL
+
+result_record <- list(result=result, 
+                      used_time = used.time, 
+                      used_memory =  used.memory)
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
+saveRDS(result_record, file = './result/result.rds')
+
+
+
