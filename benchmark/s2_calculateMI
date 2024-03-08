@@ -1,0 +1,75 @@
+library(Seurat)
+
+rm(list = ls())
+
+setwd("/home/yll/cell_cell_interaction/LRBench/")
+
+source('./R/function.R')
+set.seed(123)
+
+datasets <- c('CID4465', "stBC", 'GBM_304_T')
+methods <- c('NicheNet','CytoTalk','MISTy','stMLnet','CellChatV2','COMMOT','scriabin') 
+
+for (dataset in datasets){
+  print(dataset)
+  # load ST data
+  STser <- readRDS(paste0(dataset,'/STser.rds'))
+  CloDistCP <- readRDS(paste0(dataset,'/CloDistCP.rds'))
+   
+  # get normalized data of ST
+  norm.data <- GetAssayData(STser, 'data', 'SCT')  # get close and distant cell pairs
+  CloDistCP[['0.5']] <- NULL
+  # get celltype of ST data
+  celltype.st <- unique(STser$celltype)
+  rm(STser); gc()
+  
+  # get result path
+  if(grepl('BC', dataset)){
+    result.path <- '~/cell_cell_interaction/apply_in_stBC/OtherMethods'
+    methods <- c('NicheNet','CytoTalk','MISTy','stMLnet','CellChatV2','COMMOT','scriabin')
+  }else if(grepl('GBM', dataset)){
+    result.path <- '~/cell_cell_interaction/apply_in_stGBM/OtherMethods'
+    methods <- c('NicheNet','MISTy','stMLnet','CellChatV2','COMMOT','scriabin')
+  }else if(grepl('CID', dataset)){
+    result.path <- '~/cell_cell_interaction/apply_in_stCID/OtherMethods'
+    methods <- c('NicheNet','CytoTalk','stMLnet','CellChatV2','COMMOT','scriabin')
+  }
+  
+  output.path <- paste0(dataset, '_result.rds')
+  
+  dataset_EvalIndex1 <- lapply(methods, function(method){
+    print(method)
+    
+    # remove the LR pairs whose sender/receiver celltypes are not in celltypes of ST
+    result <- readRDS(paste0(result.path, '/', method, '/result/result.rds'))
+    result <- result$result
+    result <- result[which(result$Sender %in% celltype.st), ]
+    result <- result[which(result$Receiver %in% celltype.st), ]
+    result$sr <- paste(result$Sender, result$Receiver, sep = '_')
+    CellPairs <- names(CloDistCP$`0.1`)
+    CellPairs1 <- as.data.frame(stringr::str_split(CellPairs, '_', simplify = TRUE))
+    CellPairs1 <- paste(CellPairs1$V2, CellPairs1$V1, sep = '_')
+    CellPairs <- c(CellPairs, CellPairs1)
+    remove.sr <- setdiff(unique(result$sr), CellPairs)
+    if(length(remove.sr) != 0){
+      result <- result[-which(result$sr %in% remove.sr), ]
+    }
+    
+    if(dim(result)[1]!=0){
+      EvaIndex1_result <- lapply(CloDistCP, function(CloDist){
+        result.tmp <- EvaIndex1_2(CloDist, norm.data, result)
+        result.tmp
+      })
+      
+    }else{
+      EvaIndex1_result <- NA
+    }
+    
+    return(EvaIndex1_result)
+  })
+  
+  names(dataset_EvalIndex1) <- methods
+  saveRDS(dataset_EvalIndex1, file = output.path)
+}
+
+
