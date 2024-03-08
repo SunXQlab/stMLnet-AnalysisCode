@@ -1,0 +1,73 @@
+library(ggplot2)
+library(ggsci)
+library(ggpubr)
+library(ggsignif)
+
+rm(list = ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/LRBench/")
+###########
+## color ##
+###########
+
+scales::show_col(pal_aaas(palette = "default", alpha = 0.9)(7))
+mycolors_aaas <- pal_aaas(palette = "default", alpha = 0.9)(7)
+
+mycolor_software <- mycolors_aaas[c(1:5)]
+names(mycolor_software) <- c("NicheNet","stMLnet","CytoTalk","MISTy","COMMOT")
+scales::show_col(mycolor_software)
+
+#####################
+## load all result ##
+#####################
+stBC_result <- readRDS("~/cell_cell_interaction/apply_in_stBC/stBC_AUROC_PRC.rds")
+stCID_result <- readRDS("~/cell_cell_interaction/apply_in_stCID/CID4465_AUROC_PRC.rds")
+stGBM_result <- readRDS("~/cell_cell_interaction/apply_in_stGBM/GBM_304_T_AUROC_PRC.rds")
+stGBM_result$celllines <- "CSF1R_TAM"
+
+result_all <- rbind(stBC_result,stCID_result,stGBM_result)
+result_all[is.na(result_all)] <- 0
+result_all$AUROC_label <- gsub('^0$','NA',round(result_all$AUROC,2))
+result_all$AUPRC_label <- gsub('^0$','NA',round(result_all$AUPRC,2))
+# saveRDS(result_all,file = "./AUROC_PRC_result.rds")
+
+#load result for plot
+# result_all <- readRDS("~/cell_cell_interaction/LRBench/AUROC_PRC_result.rds") 
+# result_all <- result_all[!result_all$AUPRC == 0,]
+theme_bar <- function(..., bg='white'){
+  require(grid)
+  theme_classic(...) +
+    theme(rect=element_rect(fill=bg),
+          plot.margin=unit(rep(0.5,4), 'lines'),
+          panel.background=element_rect(fill='transparent', color='black'),
+          panel.border=element_rect(fill='transparent', color='transparent'),
+          #panel.grid=element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y=element_text(face = "bold",size = 14),
+          axis.text = element_text(face = "bold",size = 14),
+          legend.title=element_blank(),
+          legend.position='none',
+          #legend.direction = "horizontal",
+          #legend.text = element_text(face = "bold",size = 12,margin = margin(r=10)),
+          #legend.background = element_rect(linetype="solid",colour ="black")
+    )
+  
+}
+result_all$methods <- as.character(result_all$methods)
+result_all$methods <- factor(result_all$methods, levels = c("COMMOT","CytoTalk","MISTy","NicheNet","stMLnet"))
+
+p1 <- ggplot(data=result_all, aes(x=methods, y=AUPRC, fill=methods)) +
+  geom_boxplot(alpha = 0.6) +
+  #geom_jitter(aes(fill=methods),width =0.2,shape = 21,size=2.5)+ 
+  #scale_fill_manual(values = mycolor_software)+  
+  scale_y_continuous(expand = c(0, 0.01)) + labs(y = 'AUPRC') +
+  coord_cartesian(ylim=c(-0.02,1.1))+
+  scale_fill_manual(values = mycolor_software, breaks=c('COMMOT','CytoTalk','NicheNet','MISTy','stMLnet'))+
+  theme_bar() 
+p1 
+
+pdf(paste0("./visualize/boxplot_auprc_software.pdf"),
+    width = 6.5,height = 5)
+p1
+dev.off()
