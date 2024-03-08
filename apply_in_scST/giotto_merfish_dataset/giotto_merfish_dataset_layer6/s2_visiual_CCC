@@ -1,1 +1,134 @@
+library(CellChat)
+library(ggplot2)
+library(ggsci)
+library(tidyverse)
+
+rm(list = ls())
+gc()
+
+setwd("/home/cjy/project/giotto_merfish_dataset/giotto_merfish_dataset_layer6/")
+source('../code/code.R')
+
+## load ####
+load('./giotto_merfish_output.rda')
+
+###########
+## color ##
+###########
+mycolor_ct <- c( "#7BC144",  "#CA4B9A", "#60A2D8","#EB272A",
+                 "#8D574C", "#FADB01", "#5055A3", "#E9158E","#F89B3A" )
+names(mycolor_ct) <- c("OD-Mature","OD-Immature","Excitatory","Inhibitory",
+                       "Astrocyte","Endothelial","Ependymal","Microglia","Ambiguous")
+scales::show_col(mycolor_ct)
+
+# nodekey
+
+scales::show_col(pal_locuszoom(palette = "default", alpha = 0.8)(7))
+mycolors_locus <- pal_locuszoom(palette = "default", alpha = 0.8)(7)
+
+nodekey <- c("Ligand","Receptor","TF","Target")
+mycolor_key <- mycolors_locus[1:4]
+names(mycolor_key) <- nodekey
+scales::show_col(mycolor_key)
+
+# nodetype
+
+scales::show_col(pal_locuszoom(palette = "default", alpha = 0.8)(7))
+mycolors_locus <- pal_locuszoom(palette = "default", alpha = 0.8)(7)
+
+nodetype <- c("cell","Sender","Receiver")
+mycolor_nt <- mycolors_locus[1:3]
+names(mycolor_nt) <- nodetype
+scales::show_col(mycolor_nt)
+
+#############
+## workdir ##
+#############
+
+plotdir = './visualize/'
+dir.create(plotdir,recursive = T)
+
+inputdir <- paste0(res_path,file,'/getPIM/')
+files <- list.files(inputdir)[grep('_im_',list.files(inputdir))]
+CPs <- gsub('LRTG_im_clean_|LRTG_pim_clean_|\\.rds','',files)
+
+######################
+## LR activity Plot ##
+######################
+
+sender <- "Excitatory"
+receiver <- "Inhibitory"
+
+cp <- paste0(sender,"_",receiver)
+file <- files[grep(paste0(cp,'.rds'),files)]
+
+print(file)
+LRS_score = readRDS(paste0(inputdir,file))[[1]]
+LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
+
+# file <- gsub('-','_',file)
+df_LigRec <- data.frame(
+  source = colnames(LRS_score_merge) %>% gsub('_.*','',.),
+  target = colnames(LRS_score_merge) %>% gsub('.*_','',.),
+  LRpair = colnames(LRS_score_merge),
+  count = colMeans(LRS_score_merge),
+  source_group = strsplit(file,'[_\\.]')[[1]][3],
+  target_group = strsplit(file,'[_\\.]')[[1]][4]
+)
+
+df_res <- data.frame(from = df_LigRec$source,to = df_LigRec$target,
+                     value = df_LigRec$count)
+
+# add link arrow width 
+link.arr.lwd=df_res$value 
+if (is.null(link.arr.lwd)) {
+  df_res <- df_res %>% mutate(arr_width = 1)
+}else if (max(abs(link.arr.lwd)) - min(abs(link.arr.lwd)) == 0 && all(link.arr.lwd != 1e-04)) {
+  df_res <- df_res %>% mutate(arr_width = ifelse(abs(link.arr.lwd < 5), abs(link.arr.lwd), 5))
+}else {
+  df_res <- df_res %>% mutate(arr_width = ifelse(link.arr.lwd == 
+                                                   1e-04, 2, 1 + 5/(max(abs(link.arr.lwd)) - min(abs(link.arr.lwd))) * 
+                                                   (abs(link.arr.lwd) - min(abs(link.arr.lwd)))))
+}
+
+
+grid_col <- c(structure(rep("#60A2D8",length(df_res$from)), names = df_res$from), 
+              structure(rep("#EB272A",length(df_res$to)), names = df_res$to))
+
+arr_col <- data.frame(as.vector(df_res$from), 
+                      as.vector(df_res$to), 
+                      rep("black",length(df_res$from))) 
+
+pdf(paste0(plotdir,"ChordPlot_v2_LRscore_",layer,"_",cp,".pdf"),height = 5,width =5)
+circos.par(gap.after = c(rep(2, length(unique(df_res[[1]]))-1), 
+                         15,                                
+                         rep(2, length(unique(df_res[[2]]))-1), 
+                         15))                              
+chordDiagram(df_res[,1:3],grid.col = grid_col,directional = 1,
+             transparency = 0.7,
+             link.arr.col = arr_col, 
+             direction.type = "big.arrows", 
+             link.arr.lwd = 0.5, # df_res$arr_width
+             link.arr.length = 0.2,
+             link.arr.width = 0.2,
+             annotationTrack =c("grid"),
+             annotationTrackHeight = c(0.06, 0.1),
+             preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(df_res)))))
+             ) 
+
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+
+}, bg.border = NA) 
+
+circos.clear() 
+dev.off()
+
+
+
+
+
+
+
 
