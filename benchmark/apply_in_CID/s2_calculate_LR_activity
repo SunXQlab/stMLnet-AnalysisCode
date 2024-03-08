@@ -1,0 +1,90 @@
+#############
+## library ##
+#############
+
+library(dplyr)
+library(Giotto)
+library(Seurat)
+library(SeuratWrappers)
+library(lobstr)
+
+rm(list=ls())
+gc()
+setwd("~/cell_cell_interaction/apply_in_stCID/OtherMethods/stMLnet/2023.12.7")
+source('../code/code.R')
+ptm = Sys.time()
+##########
+## main ##
+##########
+
+## load ####
+
+wd <- "./runscMLnet/"
+files = list.files(wd)
+files_tumor = files[grep(".csv",files,invert = T)]
+mulNetAllList = lapply(files_tumor, function(file_tumor){
+  
+  readRDS(paste0(wd,file_tumor,"/scMLnet.rds"))
+  
+})
+names(mulNetAllList) = files_tumor
+mulNetAllList = mulNetAllList[!unlist(lapply(mulNetAllList, function(mulnet){nrow(mulnet$LigRec)==0}))]
+
+gio_stCID <- readRDS("../input/giotto_stCID.rds")
+annoMat <- data.frame(Barcode=gio_stCID@cell_metadata$cell_ID %>% as.character(),
+                      Cluster=gio_stCID@cell_metadata$celltype %>% as.character())
+annoMat$Cluster <- gsub("Cancer_Epithelial", "Cancer Epithelial", annoMat$Cluster)
+locaMat <- data.frame(gio_stCID@spatial_locs[,1:2])
+rownames(locaMat) <- gio_stCID@cell_metadata$cell_ID
+
+seed <- 4321
+exprMat = gio_stCID@norm_expr
+exprMat.Impu <- run_Imputation(exprMat, use.seed = T,seed = seed)
+
+distMat <- as.matrix(dist(locaMat))
+
+# main
+
+for (cellpair in names(mulNetAllList)) {
+  
+  message(cellpair)
+  Sender = strsplit(cellpair,"_")[[1]][1]
+  Receiver = strsplit(cellpair,"_")[[1]][2]
+  
+  LRTG_allscore_tumor_merge = calculate_LRTG_allscore_V2(
+    exprMat = exprMat.Impu, distMat = distMat, annoMat = annoMat,
+    mulNetList = mulNetAllList, Receiver = Receiver, Sender = Sender)
+  
+  saveRDS(LRTG_allscore_tumor_merge,
+          paste0("./runModel/LRTG_allscore_",cellpair,".rds"))
+  
+}
+
+#####################
+## TME-macrophages ##
+#####################
+
+Receiver = "Cancer Epithelial"
+Sender = NULL
+
+wd = './runscMLnet/'
+folders = list.dirs(wd)
+folders = folders[grep('_Cancer Epithelial',folders)] 
+mulNetAllList <- lapply(folders, function(fd){
+  
+  readRDS(paste0(fd,"/scMLnet.rds"))
+  
+})
+names(mulNetAllList) <- stringr::str_split(folders,pattern = "/",simplify = T)[,4] %>% as.vector()
+mulNetAllList = mulNetAllList[!unlist(lapply(mulNetAllList, function(mulnet){nrow(mulnet$LigRec)==0}))]
+
+LRTGscore_TC_TAM <- calculate_LRTG_allscore_V2(
+  exprMat = exprMat.Impu, distMat = distMat, annoMat = annoMat,
+  mulNetList = mulNetAllList, Receiver = Receiver, Sender = Sender)
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
+
+saveRDS(LRTGscore_TC_TAM, paste0("./runModel/LRTG_allscore_TME_Cancer Epithelial.rds"))
