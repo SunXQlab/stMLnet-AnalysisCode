@@ -1,0 +1,118 @@
+library(Seurat)
+library(scriabin)
+library(ComplexHeatmap)
+library(cowplot)
+library(magrittr)
+library(tibble)
+library(Matrix)
+library(readr)
+library(lobstr)
+
+rm(list = ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stCID/OtherMethods/scriabin/")
+
+# load ST dataset
+ptm = Sys.time()
+
+### load st data
+st_count <- Read10X('~/cell_cell_interaction/apply_in_stCID/data/CID4465/10X_visium/filtered_count_matrix/',
+                    gene.column = 1) %>% as.data.frame()
+st_metadata <- read_csv("~/cell_cell_interaction/apply_in_stCID/data/CID4465/10X_visium/CID4465_metadata.csv") %>% 
+  column_to_rownames(.,var = "...1")
+
+ser <- CreateSeuratObject(st_count, meta.data = st_metadata, assay = 'Spatial')
+
+ser <- SCTransform(ser, assay = "Spatial", verbose = F) %>%
+  RunPCA(verbose = F) %>%
+  RunUMAP(dims = 1:30, verbose = F)
+
+### load setreoscope decompositon results
+st_coef <- read.delim("~/cell_cell_interaction/apply_in_stCID/data/CID4465/decon_results/W.2022-05-15135505.473576.tsv")
+st_coef <- column_to_rownames(st_coef, var="X")
+colnames(st_coef) <- gsub('\\.', '_',colnames(st_coef))
+
+meta = data.frame(labels = colnames(st_coef)[apply(st_coef, 1, which.max)], row.names = rownames(st_coef))
+unique(meta$labels) # check the cell labels
+
+ser@meta.data$celltype <- meta$labels
+
+Idents(ser) <- "celltype"
+receiver_ct <- unique(ser@meta.data$celltype)
+sender_ct <- receiver_ct
+result <- list()
+
+result <- lapply(sender_ct, function(sender){
+  tmp.result <- list()
+  for (receiver in receiver_ct[which(receiver_ct != sender)]) {
+    ser.ccim <- GenerateCCIM(ser,
+                             senders = colnames(ser)[ser$celltype==sender],
+                             receivers = colnames(ser)[ser$celltype==receiver])
+    # str(ser.ccim)
+    # assayNames(ser.ccim)
+    #saveRDS(ser.ccim, file = "./ser_ccim.rds")
+    lr_score <- ser.ccim@assays$CCIM@layers$counts %>% rowMeans(.)
+    # print(rownames(ser.ccim))
+    ligand <- list()
+    receptor <- list()
+    for (lr in rownames(ser.ccim)){
+      lig <- strsplit(lr,"=")[[1]][1]
+      rec <- strsplit(lr,"=")[[1]][2]
+      ligand <- rbind(ligand,lig)
+      receptor <- rbind(receptor,rec)
+    }
+    ligand <- unlist(ligand)
+    receptor <- unlist(receptor)
+    res <- data.frame(Ligand = ligand,Receptor = receptor, LRscore = lr_score)
+    res$Sender <- sender
+    res$Receiver <- receiver
+    res <- res[c(4,5,1:3)]
+    rownames(res) <- NULL
+    cp <- paste0(sender,"_",receiver)
+    tmp.result[[cp]] <- res
+  }
+  tmp.result <- do.call(rbind, tmp.result)
+  rownames(tmp.result) <- NULL
+  tmp.result
+})
+
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
+
+result <- do.call(rbind, result)
+result$all <- paste(result$Sender, result$Ligand, result$Receiver, result$Receptor, sep = '_')
+result <- dplyr::distinct(result, all, .keep_all = TRUE)
+
+result_record <- list(result=result,
+                      used_time = used.time,
+                      used_memory =  used.memory)
+
+saveRDS(result_record, file = "./result/result.rds")
+
+
+
+
+# st.se <- GenerateCCIM(st.se, 
+#                       senders = colnames(st.se)[st.se$celltype %notin% "Cancer_Epithelial"],
+#                       receivers = colnames(st.se)[st.se$celltype=="Cancer_Epithelial"])
+# 
+# 
+# used.time = Sys.time() - ptm
+# used.memory <- mem_used()
+# print(as.numeric(used.time, units = "secs"))
+# 
+# LRpair <- rownames(st.se) %>% strsplit(.,"=") %>% do.call(cbind,.) %>% t(.)
+# LRpair <- as.data.frame(LRpair)
+# colnames(LRpair) <- c("Ligand", "Receptor")
+# 
+# result_record <- list(result=LRpair, 
+#                       used_time = paste0(round(used.time/60,3), ' mins'), 
+#                       used_memory =  round(used.memory/1024/1024/1024,3))
+# 
+# saveRDS(result_record, file = "./result/scriabin_result.rds")
+
+
