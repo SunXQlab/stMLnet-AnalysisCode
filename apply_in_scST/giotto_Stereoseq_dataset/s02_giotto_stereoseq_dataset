@@ -1,0 +1,158 @@
+#############
+## library ##
+#############
+
+library(Matrix)
+library(dplyr)
+library(parallel)
+library(Giotto)
+library(readr)
+library(readxl)
+library(reshape2)
+
+rm(list=ls())
+gc()
+setwd("/home/yll/cell_cell_interaction/apply_in_scST/StereoSeq/")
+
+source('../code/code.R')
+
+## load data ####
+# expression
+df_count <- read_csv("./input/E16.5_E2S11_count.csv")
+df_count <- df_count[,-1]
+df_count[1:4,1:4]
+dim(df_count)
+# range(df_count)
+df_geneID <- read_csv("./input/E16.5_E2S11_gene.csv")
+
+# location
+df_loc <- read_csv("./input/E16.5_E2S11_loc.csv") 
+df_loc <- df_loc[,-1]
+colnames(df_loc) <- c("dim.x","dim.y")
+
+# meta
+df_meta_all <- read_csv("./input/E16.5_E2S11_meta.csv")
+head(df_meta_all)
+df_meta <- df_meta_all[,c(1,6)]
+table(df_meta$annotation)
+unique(df_meta$annotation)
+
+colnames(df_count) <- df_geneID$gene_short_name
+rownames(df_count) <- df_meta_all$cell_name
+rownames(df_loc) <- df_meta_all$cell_name
+rownames(df_meta) <- df_meta_all$cell_name
+
+# marker genes
+marker_genes <- read_excel("./data/Markers_used_for_annotations.xlsx", 
+              sheet = "Markers for the E16.5 embryo")
+marker_genes <- marker_genes[-1,]
+colnames(marker_genes) <- c("celltype", "marker1", "marker2","marker3","marker4","marker5","marker6")
+marker_genes_long <- melt(marker_genes, id.vars = "celltype",value.name = "markers")
+marker_genes_long <- na.omit(marker_genes_long)
+
+# Giotto --------------------------------------------------------------
+
+# 1. Giotto object
+# to automatically save figures in save_dir set save_plot to TRUE
+temp_dir = paste0(getwd(),'/StereoSeq/')
+instrs = createGiottoInstructions(save_dir = temp_dir,
+                                  save_plot = TRUE,
+                                  show_plot = TRUE,
+                                  python_path = "/usr/bin/python3")
+
+
+# create Giotto object
+stereo_test <- createGiottoObject(raw_exprs = t(df_count),
+                                   spatial_locs = df_loc,
+                                   cell_metadata = df_meta,
+                                   instructions = instrs)
+
+rm(df_count, df_loc, df_meta, df_geneID, )
+
+saveRDS(stereo_test, file = './input/giotto_stereoseq_obj_without_anno.rds')
+
+# 2. Processing
+# 2.1. pre-test filter parameters
+filterDistributions(stereo_test, detection = 'genes',
+                    save_param = list(save_name = '2_a_distribution_genes'))
+filterDistributions(stereo_test, detection = 'cells',
+                    save_param = list(save_name = '2_b_distribution_cells'))
+filterCombinations(stereo_test,
+                   expression_thresholds = c(0,1e-6,1e-5),
+                   gene_det_in_min_cells = c(500, 1000, 1500),
+                   min_det_genes_per_cell = c(1, 5, 10),
+                   save_param = list(save_name = '2_c_filter_combos'))
+
+# 2.2. filter data
+stereo_test <- filterGiotto(gobject = stereo_test,
+                           expression_threshold = 1,
+                           gene_det_in_min_cells = 10,
+                           min_det_genes_per_cell = 10,
+                           expression_values = c('raw'),
+                           verbose = T)
+
+
+## 2.3. normalize
+stereo_test <- normalizeGiotto(gobject = stereo_test, scalefactor = 10000, verbose = T)
+stereo_test <- addStatistics(gobject = stereo_test)
+stereo_test <- adjustGiottoMatrix(gobject = stereo_test, expression_values = c('normalized'),
+                                 batch_columns = NULL, covariate_columns = c('nr_genes', 'total_expr'),
+                                 return_gobject = TRUE,
+                                 update_slot = c('custom'))
+saveRDS(stereo_test, file = './input/giotto_stereoseq_obj.rds')
+## 2.4. visualize
+spatPlot(gobject = stereo_test,
+         save_param = list(save_name = '2_a_spatplot'))
+
+# 3. Dimension Reduction
+
+## highly variable genes (HVG)
+stereo_test <- calculateHVG(gobject = stereo_test, method = 'cov_loess', difference_in_cov = 0.1,
+                           save_param = list(save_name = '3_a_HVGplot', base_height = 5, base_width = 5))
+
+## select genes based on HVG and gene statistics, both found in gene metadata
+gene_metadata = fDataDT(stereo_test)
+featgenes = gene_metadata[hvg == 'yes' & perc_cells > 4 & mean_expr_det > 0.5]$gene_ID
+
+## run PCA on expression values (default)
+stereo_test <- runPCA(gobject = stereo_test, genes_to_use = featgenes, scale_unit = F, center = F)
+screePlot(stereo_test, save_param = list(save_name = '3_b_screeplot'))
+
+plotPCA(gobject = stereo_test,
+        save_param = list(save_name = '3_c_PCA_reduction'))
+
+## run UMAP and tSNE on PCA space (default)
+stereo_test <- runUMAP(stereo_test, dimensions_to_use = 1:15, n_threads = 10)
+plotUMAP(gobject = stereo_test,
+         save_param = list(save_name = '3_d_UMAP_reduction'))
+
+stereo_test <- runtSNE(stereo_test, dimensions_to_use = 1:15)
+plotTSNE(gobject = stereo_test,
+         save_param = list(save_name = '3_e_tSNE_reduction'))
+
+# 4. Clustering
+
+## sNN network (default)
+stereo_test <- createNearestNetwork(gobject = stereo_test, dimensions_to_use = 1:15, k = 15)
+
+## Leiden clustering
+stereo_test <- doLeidenCluster(gobject = stereo_test, resolution = 0.4, n_iterations = 1000)
+plotUMAP(gobject = stereo_test,
+         cell_color = 'leiden_clus', show_NN_network = T, point_size = 2.5,
+         save_param = list(save_name = '4_a_UMAP_leiden'))
+
+print(unique(stereo_test@cell_metadata[["leiden_0.4"]]))
+saveRDS(stereo_test,"./giotto_stereoseq_obj.rds")
+
+
+
+
+
+
+
+
+
+
+
+
+
