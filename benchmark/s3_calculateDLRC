@@ -1,0 +1,97 @@
+rm(list = ls());gc()
+library(viridis)
+
+setwd("/home/yll/cell_cell_interaction/LRBench/")
+source('./R/function.R')
+set.seed(123)
+###########
+## color ##
+###########
+
+scales::show_col(pal_aaas(palette = "default", alpha = 0.7)(7))
+mycolors_aaas <- pal_aaas(palette = "default", alpha = 0.7)(7)
+
+mycolor_software <- mycolors_aaas[c(1:7)]
+names(mycolor_software) <- c("NicheNet","stMLnet","CytoTalk","MISTy","COMMOT", "CellChatV2","Scriabin")
+scales::show_col(mycolor_software)
+
+#####################
+## load all result ##
+#####################
+files <- list.files('./MI_result')
+samples <- gsub('_result.rds', '', files)
+
+result.path <- list.files('./MI_result',full.names = TRUE)
+tmp <- lapply(seq(result.path), function(i){
+  Eval1Result <- Eval1Process(result.path[i])
+  Eval1Result <- EvalIndex_DLRC(Eval1Result)
+  Eval1Result
+})
+names(tmp) <- samples
+tmp <- do.call(rbind, tmp)
+tmp <- tibble::rownames_to_column(tmp, 'datasets')
+tmp$datasets <- gsub('\\.[0-9]+', '', tmp$datasets)
+
+saveRDS(tmp,file = "./MI_result/DLRC_result.rds")
+
+## plot 
+tmp <- readRDS("~/cell_cell_interaction/LRBench/DLRC_result.rds")
+
+datasets <- unique(tmp$datasets)
+df_plot <- lapply(datasets, function(dataset){
+  tmp <- tmp[tmp$datasets == dataset,]
+  tmp$MINorm <- (tmp$MIIndex - min(tmp$MIIndex))/max(tmp$MIIndex)
+  tmp
+})
+df_plot <- do.call(rbind,df_plot)
+
+stGBM_cyto <- c("GBM_304_T",'CytoTalk',0,0,6,6,0)
+df_plot <- rbind(df_plot,stGBM_cyto)
+df_plot$MIScore <- 7 - as.numeric(df_plot$MIRank)
+df_plot$MIIndex <- as.numeric(df_plot$MIIndex)
+df_plot$MINorm <- as.numeric(df_plot$MINorm)
+
+df_plot$datasets_label <- df_plot$datasets
+df_plot$datasets_label <- gsub("CID4465","Breat cancer-1",df_plot$datasets_label)
+df_plot$datasets_label <- gsub("GBM_304_T","Glioma",df_plot$datasets_label)
+df_plot$datasets_label <- gsub("stBC","Breat cancer-2",df_plot$datasets_label)
+df_plot$methods <- gsub("scriabin","Scriabin",df_plot$methods)
+df_plot$methods <- factor(df_plot$methods,
+                          levels = c("stMLnet","Scriabin","NicheNet","MISTy","CytoTalk","COMMOT","CellChatV2"))
+
+theme_bar <- function(..., bg='white'){
+  require(grid)
+  theme_classic(...) +
+    theme(rect=element_rect(fill=bg),
+          plot.margin=unit(rep(0.5,4), 'lines'),
+          panel.background=element_rect(fill='transparent', color='black'),
+          panel.border=element_rect(fill='transparent', color='transparent'),
+          #panel.grid=element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y=element_text(face = "bold",size = 14),
+          axis.text = element_text(face = "bold",size = 14),
+          legend.title=element_blank(),
+          legend.position='none',
+          #legend.direction = "horizontal",
+          #legend.text = element_text(face = "bold",size = 12,margin = margin(r=10)),
+          #legend.background = element_rect(linetype="solid",colour ="black")
+    )
+  
+}
+
+# point plot
+p1 <- ggplot(df_plot,aes(x=datasets_label,y=methods))+
+  geom_point(aes(size=`MIScore`,color=`MINorm`))+
+  scale_color_gradient(low='darkblue',high='red')+
+  #scale_fill_viridis(discrete=FALSE, guide=FALSE, option="A") +
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        axis.text.x=element_text(size=14,face="bold",vjust=0.5),
+        axis.text.y=element_text(size=14,face="bold"))+
+  labs(x=NULL,y=NULL)
+p1
+
+pdf(paste0("./visualize/bubble_dlrc_software.pdf"),
+    width = 6,height = 5)
+p1
+dev.off()
