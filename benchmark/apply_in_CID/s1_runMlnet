@@ -1,0 +1,108 @@
+#############
+## library ##
+#############
+
+library(dplyr)
+library(Giotto)
+library(Seurat)
+library(lobstr)
+
+rm(list=ls())
+gc()
+
+setwd("~/cell_cell_interaction/apply_in_stCID/OtherMethods/stMLnet")
+source('../code/code.R')
+ptm = Sys.time()
+
+###############
+## get MLnet ##
+###############
+
+## load
+
+gio_stCID <- readRDS("../input/giotto_stCID.rds") 
+Ligs_up_list <- readRDS("../input/10X_stCID_Ligs_up.rds") 
+Recs_expr_list <- readRDS("../input/10X_stCID_Recs_expr.rds") 
+Databases <- readRDS('../prior_knowledge/Databases.rds') #prior databases 
+
+gio_stCID@cell_metadata$celltype <- gsub("Cancer_Epithelial", "Cancer Epithelial", gio_stCID@cell_metadata$celltype)
+names(Ligs_up_list) <- gsub("Cancer_Epithelial", "Cancer Epithelial", names(Ligs_up_list))
+names(Recs_expr_list) <- gsub("Cancer_Epithelial", "Cancer Epithelial", names(Recs_expr_list))
+
+## load DEGs
+ICGs_list <- readRDS(file = "../input/10X_stCID_ICGs.rds")
+
+# saveRDS(ICGs_list, file = "./input/GBM304_T_icgs.rds")
+# library(readr)
+# Macro <- read_csv("~/cell_cell_interaction/apply_in_stGBM/MacroMarkerGene.csv")
+# View(MacroMarkerGene)
+# 
+# ICGs_list <- DEGs_list
+## data
+
+GCMat = gio_stCID@norm_expr
+BarCluTable = data.frame(Barcode=gio_stCID@cell_metadata$cell_ID,
+                         Cluster=gio_stCID@cell_metadata$celltype)
+clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
+
+## parameters
+
+quan.cutoff = 0.98 
+#LigClu <- NULL
+RecClu <- 'macrophages' 
+wd <- "./runscMLnet/"
+
+## database
+
+RecTF.DB <- Databases$RecTF.DB %>% 
+  .[.$score > quantile(.$score, quan.cutoff),] %>%
+  dplyr::distinct(source, target)
+
+LigRec.DB <- Databases$LigRec.DB %>%
+  dplyr::distinct(source, target) %>%
+  dplyr::filter(target %in% RecTF.DB$source)
+
+TFTG.DB <- Databases$TFTG.DB %>%
+  dplyr::distinct(source, target) %>%
+  dplyr::filter(source %in% RecTF.DB$target)
+
+## get multi-layer
+
+wd <- './runscMLnet/'
+for(RecClu in clusters){
+  
+  LigClus = clusters[clusters != RecClu]
+  Output <- matrix(ncol = length(LigClus), nrow = 10) %>% as.data.frame()
+  MLnet_list <- list()
+  
+  for(i in 1:length(LigClus)){
+    
+    LigClu <- LigClus[i]
+    MLnet <- mainfunc(LigClu, RecClu, wd)
+    MLnet_list[[i]] <- MLnet
+    Output[,i] <- c(Ligs_up_list[[LigClu]] %>% length(),
+                    Recs_expr_list[[RecClu]] %>% length(),
+                    ICGs_list[[RecClu]] %>% length(),
+                    nrow(MLnet$LigRec),nrow(MLnet$RecTF),nrow(MLnet$TFTar),
+                    ifelse(nrow(MLnet$LigRec)==0,0,MLnet$LigRec$source %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$LigRec)==0,0,MLnet$LigRec$target %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$TFTar)==0,0,MLnet$TFTar$source %>% unique() %>% length()),
+                    ifelse(nrow(MLnet$TFTar)==0,0,MLnet$TFTar$target %>% unique() %>% length()))
+    
+    
+  }
+  names(MLnet_list) <- paste(LigClus,RecClu,sep = "_")
+  colnames(Output) <- paste(LigClus,RecClu,sep = "_")
+  rownames(Output) <- c('Lig_bk','Rec_bk','ICG_bk',
+                        "LRpair","RecTFpair","TFTGpair",
+                        "Ligand", "Receptor", "TF", "TG")
+  
+  write.csv(Output, file = paste0(wd,"/TME_",RecClu,".csv"))
+  
+}
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(used.time)
+print(used.memory)
+
