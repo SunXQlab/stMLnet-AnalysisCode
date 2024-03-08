@@ -1,0 +1,21 @@
+rm(list = ls())
+library(Seurat)
+set.seed(123)
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stBC/OtherMethods/CytoTalk")
+
+se.st <- readRDS('~/cell_cell_interaction/LRBench/stBC/STser.rds')
+
+# load ST metadata
+meta <- se.st@meta.data
+Idents(se.st) <- "celltype"
+
+norm.matrix <- GetAssayData(se.st, "data", "SCT")
+norm.matrix <- as.matrix(norm.matrix)
+write.table(norm.matrix, paste0("input/","stBC", '_norm_count.txt'), sep='\t', quote=F)
+
+meta.data <- cbind(rownames(se.st@meta.data), se.st@meta.data$celltype)  
+meta.data <- as.matrix(meta.data)
+write.table(meta.data, paste0("input/","stBC", '_meta.txt'), sep='\t', quote=F, row.names=F)
+
+
