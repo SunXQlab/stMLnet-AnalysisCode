@@ -1,12 +1,3 @@
-
-# 20240312
-# 增加计算LRI pvalue和画pvalue热图的功能
-## 1.增加mainfunc_with_pval,增加getRecFisherpval, getTFTGFisher, 在推断RecTF时使用Fisher精确检验可以输出LRI_pval
-## 2.增加DrawHeatmapPlot function，可视化LRI pval
-
-# 20240313
-## 1.增加check_feedback_loop function
-
 # main function
 mainfunc <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.method)
 {
