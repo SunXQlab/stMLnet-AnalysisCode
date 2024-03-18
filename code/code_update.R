@@ -1,3 +1,12 @@
+
+# 20240312
+# 增加计算LRI pvalue和画pvalue热图的功能
+## 1.增加mainfunc_with_pval,增加getRecFisherpval, getTFTGFisher, 在推断RecTF时使用Fisher精确检验可以输出LRI_pval
+## 2.增加DrawHeatmapPlot function，可视化LRI pval
+
+# 20240313
+## 1.增加check_feedback_loop function
+
 # main function
 mainfunc <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.method)
 {
@@ -130,7 +139,6 @@ mainfunc_with_pval <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.metho
     },error=function(e){
       cat(conditionMessage(e),"\n")
     })
-
   }
   
   tag3 = exists("RecTFTab")
@@ -166,7 +174,7 @@ mainfunc_with_pval <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.metho
   saveRDS(result, file = paste0(workdir,"/scMLnet.rds"))
   
   # calculate P_value
-  if (RecTF.method == 'Fisher'){
+  if (tag2 & RecTF.method == 'Fisher'){
     if(tag1 & tag2){
       Rec.list <- getNodeList(LigRecTab, "target")
       TF.list <- getNodeList(TFTGTab, "source")
@@ -189,6 +197,10 @@ mainfunc_with_pval <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.metho
         LigRecTab$pval[pos1] <- RecTFpval$RecTFpval[pos2]
       }
     }
+    saveRDS(LigRecTab, file = paste0(workdir,"/cellpair_LRI_pval.rds")) 
+  }else{
+    
+    LigRecTab = data.frame()
     saveRDS(LigRecTab, file = paste0(workdir,"/cellpair_LRI_pval.rds")) 
   }
   
@@ -398,6 +410,107 @@ fisher_test <- function(subset1,subset2,backgrond)
   fisher.test(matrix,alternative="greater")$p.value
 }
 
+getRecTF <- function(RecTF.DB, Rec.list, TF.list, method = c('Fisher','Search'))
+{
+  
+  if(method=='Search'){
+    RecTFTable <- getRecTFSearch(RecTF.DB, Rec.list, TF.list)
+  }else if(method=='Fisher'){
+    RecTFTable <- getRecTFFisher(RecTF.DB, Rec.list, TF.list)
+  }
+  
+  return(RecTFTable)
+}
+getRecTFFisher <- function(RecTF.DB, Rec.list, TF.list)
+{
+  
+  if (!is.data.frame(RecTF.DB))
+    stop("RecTF.DB must be a data frame or tibble object")
+  if (!"source" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'source'")
+  if (!"target" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'target'")
+  
+  # make sure Rec.list in RecTF.DB
+  Rec.list <- Rec.list[Rec.list %in% RecTF.DB$source]
+  Rec.list <- as.vector(Rec.list)
+  
+  # make sure TF.list in RecTF.DB
+  TF.list <- TF.list[TF.list %in% RecTF.DB$target]
+  TF.list <- as.vector(TF.list)
+  
+  # get TF activated by Receptors
+  TFofRec <- lapply(Rec.list, function(x){
+    RecTF.DB %>% dplyr::filter(source == x)  %>% dplyr::select(target) %>% unlist() %>% unique()
+  })
+  names(TFofRec) <- Rec.list
+  
+  # get all TF
+  TFofALL <- RecTF.DB %>% dplyr::select(target) %>% unlist() %>% unique()
+  
+  # perform fisher test
+  Recs <- lapply(TFofRec, function(x){
+    fisher_test(subset1 = x, subset2 = TF.list, backgrond = TFofALL)
+  })
+  
+  Recs <- unlist(Recs)
+  Recs <- names(Recs)[Recs <= 0.05]
+  # Recs <- Recs[Recs %in% target_gene]
+  
+  # get activated RecTF pairs
+  RecTFList <- TFofRec[Recs]
+  RecTFList <- lapply(RecTFList, function(x){intersect(x, TF.list)})
+  RecTFList <- paste(rep(Recs, times = lengths(RecTFList)), unlist(RecTFList), sep = "_")
+  
+  # check result
+  if(length(RecTFList)==0)
+    stop("Error: No significant RecTF pairs")
+  
+  # get result
+  RecTFTable <- RecTFList %>% strsplit(.,split = "_") %>% do.call(rbind, .) %>% as.data.frame()
+  colnames(RecTFTable) <- c("source","target")
+  
+  cat(paste0("get ",length(RecTFList)," activated RecTF pairs\n"))
+  return(RecTFTable)
+  # return(Recs)
+}
+
+getRecTFSearch <- function(RecTF.DB, Rec.list, TF.list)
+{
+  
+  if (!is.data.frame(RecTF.DB))
+    stop("RecTF.DB must be a data frame or tibble object")
+  if (!"source" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'source'")
+  if (!"target" %in% colnames(RecTF.DB))
+    stop("RecTF.DB must contain a column named 'target'")
+  
+  # make sure Rec.list in RecTF.DB
+  Rec.list <- Rec.list[Rec.list %in% RecTF.DB$source]
+  Rec.list <- as.vector(Rec.list)
+  
+  # make sure TF.list in RecTF.DB
+  TF.list <- TF.list[TF.list %in% RecTF.DB$target]
+  TF.list <- as.vector(TF.list)
+  
+  # RecTF pairs in RecTF.DB
+  TotRecTF <- paste(RecTF.DB$source, RecTF.DB$target, sep = "_") %>% unique()
+  
+  # get activated LR pairs
+  RecTFList <- paste(rep(Rec.list,each = length(TF.list)),TF.list,sep = "_")
+  RecTFList <- intersect(RecTFList,TotRecTF)
+  
+  # check result
+  if(length(RecTFList)==0)
+    stop("Error: No significant RecTF pairs")
+  
+  # get result
+  RecTFTable <- RecTFList %>% strsplit(.,split = "_") %>% do.call(rbind, .) %>% as.data.frame()
+  colnames(RecTFTable) <- c("source","target")
+  
+  cat(paste0("get ",length(RecTFList)," activated RecTF pairs\n"))
+  return(RecTFTable)
+}
 ################
 ## getLRscore ##
 ################
