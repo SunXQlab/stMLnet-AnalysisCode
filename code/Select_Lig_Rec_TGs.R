@@ -1,4 +1,4 @@
-CalculateCandidateGeneList <- function(ExprMat, AnnoMat, LocaMat, Databases, python_path, min.pct, expr.ct, pct.ct){
+Select_Lig_Rec_TGs <- function(ExprMat, AnnoMat, LocaMat, Databases, python_path, min.pct, expr.ct, pct.ct){
   
   # workdir
   my_python_path = python_path
