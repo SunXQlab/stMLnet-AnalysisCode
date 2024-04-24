@@ -1,6 +1,9 @@
 Select_Lig_Rec_TGs <- function(ExprMat, AnnoMat, LocaMat, Databases, python_path, min.pct, expr.ct, pct.ct){
   
   # workdir
+  de_count = ExprMat
+  de_coords = LocaMat
+  de_cell_type = AnnoMat
   my_python_path = python_path
   myinstr = createGiottoInstructions(python_path = my_python_path)
   # Create a Giotto object 
