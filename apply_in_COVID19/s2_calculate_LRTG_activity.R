@@ -16,7 +16,7 @@ source('../code/code.R')
 ## main ##
 ##########
 
-## load data
+## load data 
 
 st_rctd <- readRDS('./input/st_rctd.rds')
 
@@ -46,7 +46,7 @@ names(mulNetList) = files_tumor
 mulNetList = mulNetList[!unlist(lapply(mulNetList, function(mulnet){nrow(mulnet$LigRec)==0}))]
 str(mulNetList,max.level = 2)
 
-## Sender-Receiver
+## Sender-Receiver cellpair
 
 for (cellpair in names(mulNetList)) {
   
