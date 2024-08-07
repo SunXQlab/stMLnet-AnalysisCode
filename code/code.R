@@ -1,5 +1,5 @@
 ################
-## runscMLnet ##
+#  runscMLnet  #
 ################
 
 # main function
