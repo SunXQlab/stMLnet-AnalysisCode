@@ -38,7 +38,7 @@ clusters <- BarCluTable$Cluster %>% as.character() %>% unique()
 wd <- paste0("./runscMLnet/")
 dir.create(wd,recursive = T)
 
-## database
+## prior database
 
 quan.cutoff = 0.98
 
