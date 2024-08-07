@@ -58,7 +58,7 @@ scales::show_col(mycolor_nt)
 ################
 ## get detail ##
 ################
-## get cell pairs #### 
+# get cell pairs 
 
 inputdir <- './getPIM/'
 files <- list.files(inputdir)[grep('_im_',list.files(inputdir))]
@@ -106,7 +106,7 @@ cp_of_inter <- na.omit(cp_of_inter)
 cp_of_inter <- cp_of_inter[cp_of_inter$keys_of_ct1 != 0 & cp_of_inter$keys_of_ct2 != 0,]
 rownames(cp_of_inter) <- 1:nrow(cp_of_inter)
 
-## get genes list ####
+# get genes list
 
 key_of_inter <- list()
 for (k in 1:nrow(cp_of_inter)) {
@@ -160,7 +160,7 @@ write.csv(fbloop,'./feedback/feddback_loop_detail.csv')
 ##############
 ## plot cor ##
 ##############
-## calculate cor ####
+# calculate cor 
 
 pt_list <- list()
 for (i in 1:nrow(fbloop)) {
@@ -205,7 +205,7 @@ for (i in 1:nrow(fbloop)) {
   mi_LRscore_tgs <- na.omit(mi_LRscore_tgs)
   pcc_LRscore_tgs <- na.omit(pcc_LRscore_tgs)
   
-  ## plot-PCC
+  # plot-PCC
   
   df_plot <- pcc_LRscore_tgs
   
@@ -255,7 +255,7 @@ R.utils::setOption( "clusterProfiler.download.method",'auto' )
 celltypes <- unique(fbloop$Sender)
 for (receiver in celltypes) {
   
-  ## prepare ####
+  # prepare 
 
   LRTG_pim <- lapply(celltypes[celltypes!=receiver], function(sender){
 
@@ -266,7 +266,7 @@ for (receiver in celltypes) {
   }) %>% do.call('rbind',.) %>% .[!duplicated(.),]
   LRTG_pim_spl <- split(LRTG_pim,LRTG_pim$regulator)
 
-  ## calculate ####
+  # calculate
 
   res_ORA_GO <- Perf_Enrich(LRTG_pim_spl,Type = 'ORA',DB='GO')
   res_ORA_KEGG <- Perf_Enrich(LRTG_pim_spl,Type = 'ORA',DB='KEGG')
@@ -274,7 +274,7 @@ for (receiver in celltypes) {
                      res_ORA_KEGG = res_ORA_KEGG)
   saveRDS(res_Enrich, paste0("./feedback/result/enrich_Sender-",receiver,".rds"))
   
-  ## clean ####
+  # clean 
   
   res_ORA_KEGG <- res_Enrich$res_ORA_KEGG
   res_ORA_KEGG$ID %>% unique() %>% length()
@@ -333,7 +333,7 @@ for (receiver in celltypes) {
   anno_x_loca <- anno_x_loca+0.5
   names(anno_x_loca) <- unique(df_plot$ONTOLOGY)
   
-  ## plot ####
+  # plot 
   
   pt_merge <- ggplot(data=df_plot,aes(x=Description,y=Regulator,size=geneRatio,col=p.adjust))+
     geom_hline(aes(x=Description,y=Regulator,yintercept = 1:nrow(df_plot)),size= 1.5,colour= "#E4EDF2",alpha= .5)+
@@ -471,7 +471,7 @@ for (receiver in celltypes) {
     
   }
   
-  ## data
+  # data
   
   Key <- df_key[senders] %>% unlist()
   Type <- 'Ligand'
@@ -482,7 +482,7 @@ for (receiver in celltypes) {
   names(colodb) <- nodekey
   scales::show_col(colodb)
   
-  ## plot
+  # plot
   
   downstream <- 'Target'
   gtitle <- paste0('Sender-',receiver)
