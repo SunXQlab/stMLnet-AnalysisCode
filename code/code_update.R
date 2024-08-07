@@ -1,4 +1,7 @@
-# main function
+###################
+#  main function  #
+###################
+
 mainfunc <- function(LigClu, Rebclu, workdir, RecTF.method, TFTG.method)
 {
   
