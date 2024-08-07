@@ -70,7 +70,7 @@ You can reproduce the paper results following the codes, please make sure you ha
        remotes::install_github("satijalab/seurat-wrappers")
        remotes::install_github("drieslab/Giotto",  ref="v1.1.0")
 
-If you have problems installing the environment manually, you can also choose to install the dependent environment via dockfile:
+If you have issues installing the environment manually, you can also choose to install the dependent environment via dockfile:
 
        # Bash
        # built a docker image
