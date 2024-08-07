@@ -150,7 +150,6 @@ for (ct in cts) {
     LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
     
     cp_pair = strsplit(file,'[_\\.]')[[1]][3]
-    # file <- gsub('-','_',file)
     df_LigRec <- data.frame(
       source = colnames(LRS_score_merge) %>% gsub('_.*','',.),
       target = colnames(LRS_score_merge) %>% gsub('.*_','',.),
