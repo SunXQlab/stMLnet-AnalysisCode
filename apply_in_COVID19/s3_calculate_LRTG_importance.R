@@ -17,9 +17,9 @@ setwd("./stMLnet/apply_in_COVID19/")
 
 source('../code/code.R')
 
-#########
-## run ##
-#########
+##################
+## run the code ##
+##################
 
 wd = "./runModel/"
 files <- list.files(wd)
