@@ -1,5 +1,11 @@
-rm(list = ls());gc()
+#############
+#  library  #
+#############
+
 library(viridis)
+
+rm(list = ls());gc()
+
 
 setwd("/home/yll/cell_cell_interaction/LRBench/")
 source('./R/function.R')
