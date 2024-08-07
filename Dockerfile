@@ -1,4 +1,5 @@
 # hash:sha256:7677ead8cdf7806b1a4148916cbdc12c67940c3eee8d3add2e58602faa84621c
+
 FROM registry.codeocean.com/codeocean/r-studio:1.2.5019-r4.0.3-ubuntu18.04
 
 ARG DEBIAN_FRONTEND=noninteractive
