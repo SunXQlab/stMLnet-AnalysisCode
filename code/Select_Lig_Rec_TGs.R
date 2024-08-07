@@ -27,7 +27,7 @@ Select_Lig_Rec_TGs <- function(ExprMat, AnnoMat, LocaMat, Databases, python_path
   lapply(seq(0.1,1,0.05), quantile, x = gene_metadata$mean_expr_det, na.rm = T) %>% unlist()
   high_expressed_genes = gene_metadata[mean_expr_det > 0.75]$gene_ID  # mean_expr_det > 0.75
   
-  # identify ICGs
+  #  identify ICGs
   CPGscoresHighGenes =  findICG(gobject = gio_bc, 
                                 selected_genes = high_expressed_genes,
                                 spatial_network_name = 'Delaunay_network',
