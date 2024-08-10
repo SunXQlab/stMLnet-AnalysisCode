@@ -1,4 +1,4 @@
-# Dissecting spatial and multilayer cell-cell communications with stMLnet
+# Dissecting multilayer cell-cell communications with signaling feedback loops from spatial transcriptomics data
 
 ## Introduction
 Multicellular organisms require intercellular and intracellular signaling to coordinately regulate different cell functions. The technological advance of spatial transcriptomics (ST) lets us leverage spatial information to better elucidate cell signaling and functioning. 
