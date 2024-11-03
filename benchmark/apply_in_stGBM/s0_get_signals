@@ -60,13 +60,9 @@ results_df <-  na.omit(results_df)
   
 st_GBM <- st_GBM[,rownames(results_df)]
 
-## imputation ####
-
-set.seed(4321)
-seur <- RunALRA(st_GBM)
-st_count_imp <- seur@assays$Spatial@counts
+st_count <- st_GBM@assays$Spatial@counts
 spot_coords <- st_GBM@images$slice1@coordinates[,2:3]
-spaceRNA <- SpatialRNA(coords=spot_coords, counts=st_count_imp, nUMI=NULL)
+spaceRNA <- SpatialRNA(coords=spot_coords, counts=st_count, nUMI=NULL)
 
 ## creat RCTD object ###
 
