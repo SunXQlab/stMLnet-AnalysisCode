@@ -1,0 +1,619 @@
+#############
+## library ##
+#############
+
+library(dplyr)
+library(ranger)
+library(caret)
+library(doParallel)
+library(parallel)
+library(Metrics)
+library(ROCR)
+library(doSNOW)
+library(ggsci)
+library(ggplot2)
+
+rm(list=ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/apply_in_simu/result_of_data_colocalize_3_cellpair/")
+
+source('/home/yll/cell_cell_interaction/apply_in_simu/code/code.R')
+
+## load ground true
+
+ground <- openxlsx::read.xlsx("/home/yll/cell_cell_interaction/apply_in_simu/data/ground_ture.xlsx", rowNames=T)
+TGs = colnames(ground)
+LRpairs <- lapply(1:ncol(ground), function(x){rownames(ground)})
+names(LRpairs) <- TGs
+
+## parameters
+## calculate sender1 -> receiver3, sender2->receiver3 signaling score
+
+Receiver = 'CT_3'
+Senders = c('CT_1','CT_2')
+
+data_path = "/home/yll/cell_cell_interaction/apply_in_simu/data_colocalize_2/"
+
+for(sheetID in 1:100){
+  # sheetID = 1
+  print(sheetID)
+  
+  input_ls <- prepare_input_data(data_path,sheetID = sheetID)
+  exprMat <- input_ls$exprMat
+  annoMat <- input_ls$annoMat
+  locaMat <- input_ls$locaMat
+  distMat = as.matrix(dist(locaMat))
+  # print(table(annoMat$Cluster))
+  for (sender in Senders){
+
+    LRTG_score_reci <- calculate_LRTG_score_V2(exprMat = exprMat, distMat = distMat, annoMat = annoMat,
+                                               LRpairs = LRpairs, TGs = TGs, Receiver = Receiver, Sender = sender)
+    saveRDS(LRTG_score_reci, paste0("./runModel/LRTG_score_reci_",sender,"_",Receiver,"_",sheetID,".rds"))
+
+    LRTG_score_expo <- calculate_LRTG_score_V3(exprMat = exprMat, distMat = distMat, annoMat = annoMat,
+                                               LRpairs = LRpairs, TGs = TGs, Receiver = Receiver, Sender = sender)
+    saveRDS(LRTG_score_expo, paste0("./runModel/LRTG_score_expo_",sender,"_",Receiver,"_",sheetID,".rds"))
+
+    LRTG_score_mean <- calculate_LRTG_score_V4(exprMat = exprMat, distMat = distMat, annoMat = annoMat,
+                                               LRpairs = LRpairs, TGs = TGs, Receiver = Receiver, Sender = sender)
+    saveRDS(LRTG_score_mean, paste0("./runModel/LRTG_score_mean_",sender,"_",Receiver,"_",sheetID,".rds"))
+
+  }
+
+}
+
+####################
+## train RF model ##
+####################
+
+wd <- "./runModel/"
+
+files <-list.files(wd)
+files <- files[grep('expo',files)]
+for(f in files){
+  
+  # f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  LRTG_allscore <- readRDS(paste0(wd,f))
+  n.TG <- length(LRTG_allscore$LRs_score)
+  
+  cl <- makeSOCKcluster(6)
+  registerDoSNOW(cl)
+  pb <- txtProgressBar(min=1, max=n.TG, style=3)
+  progress <- function(n) setTxtProgressBar(pb, n)
+  opts <- list(progress=progress)
+  res_ls <- foreach(i=1:n.TG, .packages=c("dplyr","ranger",'caret'),
+                    .options.snow=opts, .errorhandling = "pass"
+  ) %dopar% {
+    trainx = LRTG_allscore$LRs_score[[i]]
+    trainy = LRTG_allscore$TGs_expr[[i]] %>% unlist()
+    get_pim_auto(trainx, trainy, auto_para = TRUE, verbose = F)
+  }
+  names(res_ls) <- names(LRTG_allscore$LRs_score)
+  close(pb)
+  stopCluster(cl)
+  gc() 
+  
+  df_im = lapply(seq(n.TG), function(i){
+    
+    print(paste0('gene',i))
+    res = res_ls[[i]]
+    im = res$df_IM
+    
+    if(is.null(im)|sum(im$IM,na.rm = T)==0){
+      
+      im = data.frame()
+      
+    }else{
+      
+      im$Ligand = stringr::str_split(im$LRpair,"_",simplify = T)[,1]
+      im$Receptor = stringr::str_split(im$LRpair,"_",simplify = T)[,2]
+      im$Target = names(res_ls)[i]
+      im$im_norm = im$IM/sum(im$IM)
+      
+    }
+    im
+    
+  })
+  df_im = do.call("rbind",df_im)
+  df_im = df_im[,c(2:5,1,6)]
+  saveRDS(df_im, paste0('./getPIM/LRTG_im_clean_',label,'.rds'))
+  
+  df_pim = lapply(seq(n.TG), function(i){
+    
+    LRpairs = colnames(LRTG_allscore$LRs_score[[i]])
+    df_LR = data.frame(LRpairs)
+    df_LR$Ligand = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,1]
+    df_LR$Receptor = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,2]
+    
+    res = res_ls[[i]]
+    
+    if(is.null(res$df_pIM)|sum(res$df_pIM$pIM,na.rm = T)==0){
+      
+      pim = data.frame()
+      
+    }else{
+      
+      pim = data.frame(regulator = gsub("shuffle_","",rownames(res$df_pIM)))
+      pim$Target = names(res_ls)[i]
+      pim$pIM = res$df_pIM$pIM
+      pim$type = pim$regulator %in% df_LR$Ligand
+      pim$type[pim$type==TRUE] = 'Ligand'
+      pim$type[pim$type==FALSE] = 'Receptor'
+      
+    }
+    pim
+    
+  })
+  df_pim = do.call('rbind',df_pim)
+  saveRDS(df_pim, paste0('./getPIM/LRTG_pim_clean_',label,'.rds'))
+  
+}
+
+wd <- "./runModel/"
+
+files <-list.files(wd)
+files <- files[grep('mean',files)]
+for(f in files){
+  
+  # f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  LRTG_allscore <- readRDS(paste0(wd,f))
+  n.TG <- length(LRTG_allscore$LRs_score)
+  
+  cl <- makeSOCKcluster(6)
+  registerDoSNOW(cl)
+  pb <- txtProgressBar(min=1, max=n.TG, style=3)
+  progress <- function(n) setTxtProgressBar(pb, n)
+  opts <- list(progress=progress)
+  res_ls <- foreach(i=1:n.TG, .packages=c("dplyr","ranger",'caret'),
+                    .options.snow=opts, .errorhandling = "pass"
+  ) %dopar% {
+    trainx = LRTG_allscore$LRs_score[[i]]
+    trainy = LRTG_allscore$TGs_expr[[i]] %>% unlist()
+    get_pim_auto(trainx, trainy, auto_para = TRUE, verbose = F)
+  }
+  names(res_ls) <- names(LRTG_allscore$LRs_score)
+  close(pb)
+  stopCluster(cl)
+  gc() 
+  
+  df_im = lapply(seq(n.TG), function(i){
+    
+    print(paste0('gene',i))
+    res = res_ls[[i]]
+    im = res$df_IM
+    
+    if(is.null(im)|sum(im$IM,na.rm = T)==0){
+      
+      im = data.frame()
+      
+    }else{
+      
+      im$Ligand = stringr::str_split(im$LRpair,"_",simplify = T)[,1]
+      im$Receptor = stringr::str_split(im$LRpair,"_",simplify = T)[,2]
+      im$Target = names(res_ls)[i]
+      im$im_norm = im$IM/sum(im$IM)
+      
+    }
+    im
+    
+  })
+  df_im = do.call("rbind",df_im)
+  df_im = df_im[,c(2:5,1,6)]
+  saveRDS(df_im, paste0('./getPIM/LRTG_im_clean_',label,'.rds'))
+  
+  df_pim = lapply(seq(n.TG), function(i){
+    
+    LRpairs = colnames(LRTG_allscore$LRs_score[[i]])
+    df_LR = data.frame(LRpairs)
+    df_LR$Ligand = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,1]
+    df_LR$Receptor = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,2]
+    
+    res = res_ls[[i]]
+    
+    if(is.null(res$df_pIM)|sum(res$df_pIM$pIM,na.rm = T)==0){
+      
+      pim = data.frame()
+      
+    }else{
+      
+      pim = data.frame(regulator = gsub("shuffle_","",rownames(res$df_pIM)))
+      pim$Target = names(res_ls)[i]
+      pim$pIM = res$df_pIM$pIM
+      pim$type = pim$regulator %in% df_LR$Ligand
+      pim$type[pim$type==TRUE] = 'Ligand'
+      pim$type[pim$type==FALSE] = 'Receptor'
+      
+    }
+    pim
+    
+  })
+  df_pim = do.call('rbind',df_pim)
+  saveRDS(df_pim, paste0('./getPIM/LRTG_pim_clean_',label,'.rds'))
+  
+}
+
+wd <- "./runModel/"
+
+files <-list.files(wd)
+files <- files[grep('reci',files)]
+for(f in files){
+  
+  # f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  LRTG_allscore <- readRDS(paste0(wd,f))
+  n.TG <- length(LRTG_allscore$LRs_score)
+  
+  cl <- makeSOCKcluster(6)
+  registerDoSNOW(cl)
+  pb <- txtProgressBar(min=1, max=n.TG, style=3)
+  progress <- function(n) setTxtProgressBar(pb, n)
+  opts <- list(progress=progress)
+  res_ls <- foreach(i=1:n.TG, .packages=c("dplyr","ranger",'caret'),
+                    .options.snow=opts, .errorhandling = "pass"
+  ) %dopar% {
+    trainx = LRTG_allscore$LRs_score[[i]]
+    trainy = LRTG_allscore$TGs_expr[[i]] %>% unlist()
+    get_pim_auto(trainx, trainy, auto_para = TRUE, verbose = F)
+  }
+  names(res_ls) <- names(LRTG_allscore$LRs_score)
+  close(pb)
+  stopCluster(cl)
+  gc() 
+  
+  df_im = lapply(seq(n.TG), function(i){
+    
+    print(paste0('gene',i))
+    res = res_ls[[i]]
+    im = res$df_IM
+    
+    if(is.null(im)|sum(im$IM,na.rm = T)==0){
+      
+      im = data.frame()
+      
+    }else{
+      
+      im$Ligand = stringr::str_split(im$LRpair,"_",simplify = T)[,1]
+      im$Receptor = stringr::str_split(im$LRpair,"_",simplify = T)[,2]
+      im$Target = names(res_ls)[i]
+      im$im_norm = im$IM/sum(im$IM)
+      
+    }
+    im
+    
+  })
+  df_im = do.call("rbind",df_im)
+  df_im = df_im[,c(2:5,1,6)]
+  saveRDS(df_im, paste0('./getPIM/LRTG_im_clean_',label,'.rds'))
+  
+  df_pim = lapply(seq(n.TG), function(i){
+    
+    LRpairs = colnames(LRTG_allscore$LRs_score[[i]])
+    df_LR = data.frame(LRpairs)
+    df_LR$Ligand = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,1]
+    df_LR$Receptor = stringr::str_split(df_LR$LRpair,"_",simplify = T)[,2]
+    
+    res = res_ls[[i]]
+    
+    if(is.null(res$df_pIM)|sum(res$df_pIM$pIM,na.rm = T)==0){
+      
+      pim = data.frame()
+      
+    }else{
+      
+      pim = data.frame(regulator = gsub("shuffle_","",rownames(res$df_pIM)))
+      pim$Target = names(res_ls)[i]
+      pim$pIM = res$df_pIM$pIM
+      pim$type = pim$regulator %in% df_LR$Ligand
+      pim$type[pim$type==TRUE] = 'Ligand'
+      pim$type[pim$type==FALSE] = 'Receptor'
+      
+    }
+    pim
+    
+  })
+  df_pim = do.call('rbind',df_pim)
+  saveRDS(df_pim, paste0('./getPIM/LRTG_pim_clean_',label,'.rds'))
+  
+}
+
+
+# plot 
+
+wd <- "./runModel/"
+
+files <-list.files(wd)
+files <- files[grep('reci',files)]
+
+LRs_score_all <- list()
+for(f in files){
+  
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  
+  cellpair <- gsub("^reci_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+  
+  LRs_score_ls <- readRDS(paste0(wd,f))[[1]]
+  
+  LRs_score <- list()
+  for (i in names(LRs_score_ls)){
+    a <- LRs_score_ls[[i]]
+    df_a <- reshape2::melt(a)
+    colnames(df_a) <- c('cell_id','LRpair','score')
+    LRs_score[[i]] <- df_a
+  }
+  LRs_score <- do.call('rbind',LRs_score)
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+  
+  LRs_score_all[[label]]<- LRs_score
+}
+
+LRs_score_all <- do.call('rbind',LRs_score_all)
+LRs_score_all$norm_score <- (LRs_score_all$score-min(LRs_score_all$score))/(max(LRs_score_all$score)-min(LRs_score_all$score))
+
+### plot 
+df_ct1_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$norm_score, df_ct2_ct3$norm_score,alternative = 'greater') # p-value < 2.2e-16
+
+p1 <- ggplot(LRs_score_all,aes(x=cellpair,y=norm_score,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+#geom_violin() + geom_boxplot(width=0.1)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+pdf("./visualize/violinplot_sheet1-100_reci_SCtoRC_normLRscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
+
+wd <- "./runModel/"
+files <-list.files(wd)
+files <- files[grep('expo',files)]
+LRs_score_all <- list()
+for(f in files){
+  
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  
+  cellpair <- gsub("^expo_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+  
+  LRs_score_ls <- readRDS(paste0(wd,f))[[1]]
+  
+  LRs_score <- list()
+  for (i in names(LRs_score_ls)){
+    a <- LRs_score_ls[[i]]
+    df_a <- reshape2::melt(a)
+    colnames(df_a) <- c('cell_id','LRpair','score')
+    LRs_score[[i]] <- df_a
+  }
+  LRs_score <- do.call('rbind',LRs_score)
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+  
+  LRs_score_all[[label]]<- LRs_score
+}
+
+LRs_score_all <- do.call('rbind',LRs_score_all)
+LRs_score_all$norm_score <- (LRs_score_all$score-min(LRs_score_all$score))/(max(LRs_score_all$score)-min(LRs_score_all$score))
+
+### plot 
+df_ct1_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$norm_score, df_ct2_ct3$norm_score,alternative = 'greater') # p-value < 2.2e-16
+
+p1 <- ggplot(LRs_score_all,aes(x=cellpair,y=norm_score,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+pdf("./visualize/boxplot_sheet1-100_expo_SCtoRC_normLRscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
+
+wd <- "./runModel/"
+files <-list.files(wd)
+files <- files[grep('mean',files)]
+LRs_score_all <- list()
+for(f in files){
+  
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_score_)|(.rds)','',f)
+  
+  cellpair <- gsub("^mean_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+  
+  LRs_score_ls <- readRDS(paste0(wd,f))[[1]]
+  
+  LRs_score <- list()
+  for (i in names(LRs_score_ls)){
+    a <- LRs_score_ls[[i]]
+    df_a <- reshape2::melt(a)
+    colnames(df_a) <- c('cell_id','LRpair','score')
+    LRs_score[[i]] <- df_a
+  }
+  LRs_score <- do.call('rbind',LRs_score)
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+  
+  LRs_score_all[[label]]<- LRs_score
+}
+
+LRs_score_all <- do.call('rbind',LRs_score_all)
+LRs_score_all$norm_score <- (LRs_score_all$score-min(LRs_score_all$score))/(max(LRs_score_all$score)-min(LRs_score_all$score))
+
+### plot 
+df_ct1_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_score_all[LRs_score_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$norm_score, df_ct2_ct3$norm_score,alternative = 'greater') # p-value < 2.2e-16
+p_val
+
+p1 <- ggplot(LRs_score_all,aes(x=cellpair,y=norm_score,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+pdf("./visualize/boxplot_sheet1-100_mean_SCtoRC_normLRscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
+############################
+# plot LR signaling score  #
+############################
+wd <- "./getPIM/"
+
+files <-list.files(wd)
+files <- files[grep('reci',files)]
+files <- files[grep('pim',files,invert = T)]
+
+LRs_IMscore_all <- list()
+for(f in files){
+
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_im_clean_)|(.rds)','',f)
+
+  cellpair <- gsub("^reci_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+
+  LRs_score <- readRDS(paste0(wd,f))
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+
+  LRs_IMscore_all[[label]]<- LRs_score
+}
+
+LRs_IMscore_all <- do.call('rbind',LRs_IMscore_all)
+# LRs_IMscore_all$norm_score <- (LRs_IMscore_all$score-min(LRs_IMscore_all$score))/(max(LRs_IMscore_all$score)-min(LRs_score_all$score))
+
+### plot 
+df_ct1_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$IM, df_ct2_ct3$IM,alternative = 'greater') # p-value < 2.2e-16
+
+p1 <- ggplot(LRs_IMscore_all,aes(x=cellpair,y=im_norm,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+  #geom_violin() + geom_boxplot(width=0.1)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+p1
+pdf("./visualize/boxplot_sheet1-100_reci_SCtoRC_normIMscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
+wd <- "./getPIM/"
+files <-list.files(wd)
+files <- files[grep('expo',files)]
+files <- files[grep('pim',files,invert = T)]
+
+LRs_IMscore_all <- list()
+for(f in files){
+  
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_im_clean_)|(.rds)','',f)
+  
+  cellpair <- gsub("^expo_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+  
+  LRs_score <- readRDS(paste0(wd,f))
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+  
+  LRs_IMscore_all[[label]]<- LRs_score
+}
+
+LRs_IMscore_all <- do.call('rbind',LRs_IMscore_all)
+
+### plot 
+df_ct1_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$im_norm, df_ct2_ct3$im_norm,alternative = 'greater') # p-value < 2.2e-16
+
+p1 <- ggplot(LRs_IMscore_all,aes(x=cellpair,y=im_norm,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+p1
+pdf("./visualize/boxplot_sheet1-100_expo_SCtoRC_normIMscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
+
+wd <- "./getPIM/"
+files <-list.files(wd)
+files <- files[grep('mean',files)]
+files <- files[grep('pim',files,invert = T)]
+
+LRs_IMscore_all <- list()
+for(f in files){
+  
+  #f = files[1]
+  print(f)
+  label <- gsub('(LRTG_im_clean_)|(.rds)','',f)
+  
+  cellpair <- gsub("^mean_", "", label)  # 去掉"reci_"
+  cellpair <- gsub("_\\d+$", "", cellpair)  # 去掉最后的"_1", "_2", "_3"
+  sheetID <- sub(".*_", "", label)
+  
+  LRs_score <- readRDS(paste0(wd,f))
+  LRs_score$cellpair <- cellpair
+  LRs_score$sheetID <- sheetID
+  
+  LRs_IMscore_all[[label]]<- LRs_score
+}
+
+LRs_IMscore_all <- do.call('rbind',LRs_IMscore_all)
+
+### plot 
+df_ct1_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_1_CT_3",]
+df_ct2_ct3 <- LRs_IMscore_all[LRs_IMscore_all$cellpair=="CT_2_CT_3",]
+p_val <- wilcox.test(df_ct1_ct3$IM, df_ct2_ct3$IM,alternative = 'greater') # p-value < 2.2e-16
+
+p1 <- ggplot(LRs_IMscore_all,aes(x=cellpair,y=im_norm,fill=cellpair))+
+  geom_boxplot(width=0.7, outlier.size = 0.5)
+
+p1 <- p1 + theme_classic() + theme(
+  axis.title = element_text(size = 14),
+  axis.text.x = element_text(size = 12),
+  axis.text.y = element_text(size = 12),
+  legend.position = 'none')
+p1
+pdf("./visualize/boxplot_sheet1-100_mean_SCtoRC_normIMscore.pdf",width = 6,height = 5)
+p1
+dev.off()
+
