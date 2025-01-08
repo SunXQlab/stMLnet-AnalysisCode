@@ -166,4 +166,42 @@ for (ct in cts) {
   }
 }
 
+#############################
+## LR activity Bubble Plot ##
+#############################
+
+res_path <- '~/cell_cell_interaction/stMLnet_cjy/apply_in_scST/giotto_seqfish_dataset/'
+inputdir <- paste0(res_path,'runModel/')
+
+ct <- c("OPC","Olig")
+
+files = list.files(inputdir)
+files <- files[lapply(CPs, function(cp){grep(cp,files)}) %>% unlist() %>% unique()]
+files = files[grep(paste0('_',ct[1],'.rds',"|",'_',ct[2],'.rds'),files)]
+
+df_LRTGscore = lapply(files, function(file){
+  
+  print(file)
+  LRS_score = readRDS(paste0(inputdir,file))[[1]]
+  LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
+  
+  # file <- gsub('-','_',file)
+  df_LigRec <- data.frame(
+    source = colnames(LRS_score_merge) %>% gsub('_.*','',.),
+    target = colnames(LRS_score_merge) %>% gsub('.*_','',.),
+    LRpair = colnames(LRS_score_merge),
+    count = colMeans(LRS_score_merge),
+    source_group = strsplit(file,'[_\\.]')[[1]][3],
+    target_group = strsplit(file,'[_\\.]')[[1]][4]
+  )
+  
+}) %>% do.call('rbind',.)
+df_LRTGscore$cellpair <- paste0(df_LRTGscore$source_group,"->",df_LRTGscore$target_group)
+df_LRTGscore$LRpair <- gsub("_","-",df_LRTGscore$LRpair)
+
+bubble_plot_LRscore(df_LRTGscore,getwd(),save_name=paste0(ct1,"_",ct2))
+
+
+
+
 
