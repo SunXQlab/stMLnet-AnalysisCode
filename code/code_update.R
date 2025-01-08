@@ -2691,6 +2691,43 @@ prepare_input_data <- function(sheetID)
 }
                                                       
 #=======================================added by yll 2025-01-08================================
+DrawBubblePlot <- function(respath,outputdir,ct,p_width,p_height){
+  
+  inputdir0 <- paste0(res_path,'getPIM/')
+  files <- list.files(inputdir0)[grep('_im_',list.files(inputdir0))]
+  CPs <- gsub('LRTG_im_clean_|LRTG_pim_clean_|\\.rds','',files)
+  
+  
+  inputdir <- paste0(res_path,'runModel/')
+  files = list.files(inputdir)
+  files <- files[lapply(CPs, function(cp){grep(cp,files)}) %>% unlist() %>% unique()]
+  files = files[grep(paste0('_',ct[1],'.rds',"|",'_',ct[2],'.rds'),files)]
+  
+  df_LRTGscore = lapply(files, function(file){
+    
+    print(file)
+    LRS_score = readRDS(paste0(inputdir,file))[[1]]
+    LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
+    
+    # file <- gsub('-','_',file)
+    df_LigRec <- data.frame(
+      source = colnames(LRS_score_merge) %>% gsub('_.*','',.),
+      target = colnames(LRS_score_merge) %>% gsub('.*_','',.),
+      LRpair = colnames(LRS_score_merge),
+      count = colMeans(LRS_score_merge),
+      source_group = strsplit(file,'[_\\.]')[[1]][3],
+      target_group = strsplit(file,'[_\\.]')[[1]][4]
+    )
+    
+  }) %>% do.call('rbind',.)
+  df_LRTGscore$cellpair <- paste0(df_LRTGscore$source_group,"->",df_LRTGscore$target_group)
+  df_LRTGscore$LRpair <- gsub("_","-",df_LRTGscore$LRpair)
+  
+  
+  bubble_plot_LRscore(df_LRTGscore,outputdir,p_width,p_height,save_name=paste0(ct[1],"_",ct[2]))
+  
+}
+                                                      
 bubble_plot_LRscore <- function(res,wd_path,save_name){
   
   df_LRTGscore = res
@@ -2737,6 +2774,57 @@ bubble_plot_LRscore <- function(res,wd_path,save_name){
   
 }
 
+  DrawHeatmapNetworkPlot <- function(InputDir,OutputDir, Metric, mycolor_ct,p_width,p_height){
+  suppressMessages(library(CellChat))
+  suppressMessages(library(ComplexHeatmap))
+  
+  inputdir <- InputDir
+  key <- Metric
+  
+  plotdir <- paste0(OutputDir,"/visualize/NetworkPlot/")
+  dir.create(plotdir, recursive = T, showWarnings = F)
+  
+  files <- list.files(inputdir)[grep("LRTG_im_clean_", list.files(inputdir))]
+  
+  LRTG_detail <- lapply(files, function(f){
+    
+    LRTG_im <- readRDS(paste0(inputdir,f))
+    LRTG_im <- na.omit(LRTG_im)
+    c(length(unique(LRTG_im$LRpair)),length(unique(LRTG_im$Target)),
+      sum(LRTG_im$IM),sum(LRTG_im$im_norm),
+      sum(LRTG_im$IM)/nrow(LRTG_im),sum(LRTG_im$im_norm)/nrow(LRTG_im))
+    
+  }) %>% do.call('rbind',.) %>% as.data.frame()
+  df_cellpair <- gsub('LRTG_im_clean_|.rds','',files) %>% strsplit(.,"_") %>% do.call('rbind',.) %>% as.data.frame()
+  LRTG_detail <- cbind(df_cellpair,LRTG_detail)
+  LRTG_detail <- na.omit(LRTG_detail)
+  colnames(LRTG_detail) <- c('cell_from','cell_to','n_LRs','n_TGs','IM','IM_norm','mean_IM','mean_IM_norm')
+  
+  
+  celltype = unique(c(LRTG_detail$cell_from,LRTG_detail$cell_to))
+  LRTG_detail[[key]] <- as.numeric(LRTG_detail[[key]])
+  
+  tmeTab0 <- LRTG_detail[,c('cell_from','cell_to',key)] 
+  
+  mat2 <- matrix(0,nrow = length(celltype),ncol = length(celltype))
+  rownames(mat2) <- celltype
+  colnames(mat2) <- celltype
+  for (i in 1:nrow(tmeTab0)){
+    c1 <- tmeTab0$cell_from[i]
+    c2 <- tmeTab0$cell_to[i]
+    val <- tmeTab0$n_LRs[i]
+    mat2[c1,c2] <- val
+    
+  }
+  
+  pt <- Heatmap_plot_Network(net = mat2,key=key,color.use=mycolor_ct[rownames(mat2)], color.heatmap = "Reds")
+  
+  pdf(paste0(plotdir,"NetwrokHeatmap_",key,".pdf"),height = p_height,width = p_width)
+  print(pt)
+  dev.off()
+  
+}
+                                                      
 Heatmap_plot_Network <- function(net = tmeTab,
                                key=NULL,
                                comparison = c(1, 2),
