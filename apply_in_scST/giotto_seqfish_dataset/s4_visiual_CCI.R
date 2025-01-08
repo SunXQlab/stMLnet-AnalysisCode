@@ -220,7 +220,7 @@ df_LRTGscore = lapply(files, function(file){
 df_LRTGscore$cellpair <- paste0(df_LRTGscore$source_group,"->",df_LRTGscore$target_group)
 df_LRTGscore$LRpair <- gsub("_","-",df_LRTGscore$LRpair)
 
-bubble_plot_LRscore(df_LRTGscore,getwd(),save_name=paste0(ct1,"_",ct2))
+bubble_plot_LRscore(df_LRTGscore,getwd(),p_width=6,p_height=5.5,save_name=paste0(ct1,"_",ct2))
 
 
 
