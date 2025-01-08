@@ -133,6 +133,25 @@ for (key in colnames(LRTG_detail)[3:8]) {
   
 }
 
+#############################
+## NetworkPlot with heatmap #
+#############################
+
+for (key in colnames(LRTG_detail)[3:8]) {
+  
+  tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)] %>% spread(cell_to, key) %>% 
+    column_to_rownames(.,var = "cell_from")
+  tmeTab[is.na(tmeTab)] <- 0 
+  tmeTab <- as.matrix(tmeTab)
+  
+  colordb <- mycolor_ct[rownames(tmeTab)]
+  
+  pdf(paste0("./visualize/netwrok_heatmap_",key,".pdf"),height = 6,width =7)
+  Heatmap_plot_Network(net = tmeTab,key=key,color.use=mycolor_ct[rownames(tmeTab)])
+  dev.off()
+  
+}
+
 ######################
 ## LR activity Plot ##
 ######################
@@ -200,7 +219,6 @@ for (ct in cts) {
     
   }
 }
-
 
 #################
 ## LR~TG score ##
@@ -376,3 +394,51 @@ p1
 pdf(paste0(plotdir,"bubble_pval_","sender_",ct,".pdf"),height = 5.5,width = 5)
 p1
 dev.off()
+
+##################
+#  bubble plot   #
+##################
+
+inputdir <- paste0(res_path,'runModel/')
+
+cts <- c("Interneuron","CA1-Principal-cells")
+files = list.files(inputdir)
+files <- files[lapply(CPs, function(cp){grep(cp,files)}) %>% unlist() %>% unique()]
+files = files[grep(paste0('_',cts[1],'.rds',"|",'_',cts[2],'.rds'),files)]
+
+df_LRTGscore = lapply(files, function(file){
+  
+  print(file)
+  LRS_score = readRDS(paste0(inputdir,file))[[1]]
+  LRS_score_merge = do.call('cbind',LRS_score) %>% .[,!duplicated(colnames(.))]
+  
+  # file <- gsub('-','_',file)
+  df_LigRec <- data.frame(
+    source = colnames(LRS_score_merge) %>% gsub('_.*','',.),
+    target = colnames(LRS_score_merge) %>% gsub('.*_','',.),
+    LRpair = colnames(LRS_score_merge),
+    count = colMeans(LRS_score_merge),
+    source_group = strsplit(file,'[_\\.]')[[1]][3],
+    target_group = strsplit(file,'[_\\.]')[[1]][4]
+  )
+  
+  # filter 
+  # df_LigRec <- df_LigRec[df_LigRec$count > 0.02,]
+  # df_LigRec <- df_LigRec[order(df_LigRec$count,decreasing=T),]
+  
+}) %>% do.call('rbind',.)
+
+df_LRTGscore$cellpair <- paste0(df_LRTGscore$source_group,"->",df_LRTGscore$target_group)
+df_LRTGscore$LRpair <- gsub("_","-",df_LRTGscore$LRpair)
+
+# input
+
+res <- data.frame(cellpair = df_LRTGscore$cellpair,LRpair = df_LRTGscore$LRpair,
+                  count = df_LRTGscore$count)
+res <- res[order(res$count,decreasing=T),] 
+
+res <- res[res$count > 0.05,]
+res <- res[order(res$count,decreasing=T),]
+
+bubble_plot_LRscore(res,getwd(),save_name=paste0(cts[1],"_",cts[2]))
+
