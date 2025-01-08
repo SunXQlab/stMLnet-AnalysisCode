@@ -440,5 +440,5 @@ res <- res[order(res$count,decreasing=T),]
 res <- res[res$count > 0.05,]
 res <- res[order(res$count,decreasing=T),]
 
-bubble_plot_LRscore(res,getwd(),save_name=paste0(cts[1],"_",cts[2]))
+bubble_plot_LRscore(res,getwd(),p_width=6,p_height=5.5,save_name=paste0(ct1,"_",ct2))
 
