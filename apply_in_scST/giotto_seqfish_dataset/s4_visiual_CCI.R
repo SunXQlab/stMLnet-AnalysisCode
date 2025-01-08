@@ -98,6 +98,27 @@ for (key in colnames(LRTG_detail)[3:8]) {
   
 }
 
+#############################
+## NetworkPlot with heatmap #
+#############################
+
+for (key in colnames(LRTG_detail)[3:8]) {
+  
+  tmeTab <- LRTG_detail[,c('cell_from','cell_to',key)] %>% spread(cell_to, key) %>% 
+    column_to_rownames(.,var = "cell_from")
+  tmeTab[is.na(tmeTab)] <- 0 
+  tmeTab <- as.matrix(tmeTab)
+  
+  colordb <- mycolor_ct[rownames(tmeTab)]
+  
+  pdf(paste0("./visualize/netwrok_heatmap_",key,".pdf"),height = 6,width =7)
+  Heatmap_plot_Network(net = tmeTab,key=key,color.use=mycolor_ct[rownames(tmeTab)])
+  dev.off()
+  
+}
+
+
+
 ######################
 ## LR activity Plot ##
 ######################
