@@ -1,0 +1,152 @@
+library(cytosignal)
+library(Seurat)
+library(lobstr)
+library(readr)
+library(tibble)
+library(dplyr)
+library(tidyr)
+
+rm(list = ls())
+gc()
+
+setwd("/home/yll/cell_cell_interaction/apply_in_stBC/OtherMethods/CytoSignal/")
+source('/home/yll/cell_cell_interaction/apply_in_stBC/OtherMethods/CytoSignal/getIntrValue.R')
+
+ptm = Sys.time()
+
+### load st data
+# st.se <- Load10X_Spatial(
+#   data.dir = '~/cell_cell_interaction/stMLnet_cjy/apply_in_stBC/data/10x_visium/Human Breast Cancer (Block A Section 1)/',
+#   filename = 'V1_Breast_Cancer_Block_A_Section_1_filtered_feature_bc_matrix.h5', 
+#   assay = "Spatial",
+#   slice = "slice", 
+#   filter.matrix = TRUE,
+#   to.upper = FALSE)
+
+# saveRDS(st.se,file='HumanBreastCancer_10XVisium_data.rds')
+
+st.se <- readRDS('./HumanBreastCancer_10XVisium_data.rds')
+
+### load Seurat decompositon results
+st_coef <- read_csv("~/cell_cell_interaction/stMLnet_cjy/apply_in_stBC/preprocess/celltype_predictions.csv")
+st_coef <- column_to_rownames(st_coef, var="...1")
+st_coef <- t(st_coef[1:7,])
+
+meta = data.frame(labels = colnames(st_coef)[apply(st_coef, 1, which.max)], row.names = rownames(st_coef))
+unique(meta$labels) # check the cell labels
+colnames(meta) <- c('cell_type')
+
+# creat CytoSiganl object
+
+dge <- st.se@assays$Spatial@counts
+cluster <- meta
+cluster <- factor(cluster$cell_type)
+names(cluster) <- colnames(dge)
+spatial <- data.frame(x=st.se@images$slice@coordinates$row,y=st.se@images$slice@coordinates$col)
+spatial <- as.matrix(spatial)
+rownames(spatial) <- colnames(dge)
+
+cs <- createCytoSignal(raw.data = dge, cells.loc = spatial, clusters = cluster)
+
+cs <- addIntrDB(cs, g_to_u, db.diff, db.cont, inter.index)
+
+cs <- removeLowQuality(cs, counts.thresh = 300)
+cs <- changeUniprot(cs)
+
+cs <- inferEpsParams(cs, scale.factor = 0.73)
+cs@parameters$r.diffuse.scale
+
+cs <- findNN(cs)
+cs <- imputeLR(cs)
+cs <- inferIntrScore(cs)
+cs <- inferSignif(cs, p.value = 0.05, reads.thresh = 100, sig.thresh = 100)
+cs <- rankIntrSpatialVar(cs)
+
+allIntrs_diff <- showIntr(cs, slot.use = "GauEps-Raw", signif.use = "result.spx", return.name = TRUE)
+allIntrs_cont <- showIntr(cs, slot.use = "Raw-Raw", signif.use = "result.spx", return.name = TRUE)
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(as.numeric(used.time, units = "secs"))
+print(as.numeric(used.memory/1024/1024/1024, units = "GB"))
+
+# diffusion interaction
+construct_result <- function(object,allIntrs,slot.use,signif.use){
+  
+  weight <- object@imputation$GauEps@nn.graph %>% as.matrix(.)
+  rownames(weight) <- colnames(weight)
+  
+  lrscore.obj <- object@lrscore[[slot.use]]
+  receiver_id <- object@lrscore[[slot.use]]@res.list$result.spx
+  score <- lrscore.obj@score
+  
+  res_all <- list()
+  
+  for (i in names(receiver_id)){
+    receiver_id_i = receiver_id[[i]]
+    weight_i = weight[,receiver_id_i]
+    score_i = score[receiver_id_i,i]
+    
+    weight_i <- as.data.frame(weight_i)
+    weight_i <- weight_i %>% 
+      rownames_to_column(var = "Sender")
+    long_weight_i <- weight_i %>% 
+      pivot_longer(
+        cols = -Sender,            
+        names_to = "Receiver",     
+        values_to = "weight"      
+      )
+    
+    long_weight_i <- long_weight_i[long_weight_i$weight!=0,]
+    long_weight_i$score <- 0
+    for (j in receiver_id_i){
+      
+      long_weight_i$score[long_weight_i$Receiver==j]=score_i[j]
+      
+    }
+    long_weight_i$LR <- allIntrs[i]
+    long_weight_i$sender_type <- cluster[long_weight_i$Sender]
+    long_weight_i$receiver_type <- cluster[long_weight_i$Receiver]
+    long_weight_i <- long_weight_i %>% separate(LR, into = c("Ligand", "Receptor"), sep = "-") 
+    
+    res_i <- long_weight_i[,c(7,8,5,6,4)]
+    colnames(res_i) <- c('Sender','Receiver',"Ligand","Receptor",'LRscore')
+    res_i$all <- paste(res_i$Sender, res_i$Ligand, res_i$Receiver, res_i$Receptor, sep = '_')
+    
+    res_i_avg <- res_i %>%
+      group_by(all) %>%                   
+      summarise(
+        Sender = first(Sender),               
+        Receiver = first(Receiver),           
+        Ligand = first(Ligand),               
+        Receptor = first(Receptor),           
+        LRscore = mean(LRscore, na.rm = TRUE) 
+      )
+    
+    res_i_avg <- as.data.frame(res_i_avg)
+    res_i_avg <- res_i_avg[,c(2,3,4,5,6,1)]
+    res_all[[i]] <- res_i_avg
+    
+  }
+  
+  res_all <- do.call("rbind", res_all)
+  
+  
+}
+
+res_diff <- construct_result(cs,allIntrs=allIntrs_diff,slot.use = "GauEps-Raw",signif.use = "result.spx")
+res_cont <- construct_result(cs,allIntrs=allIntrs_cont,slot.use = "Raw-Raw",signif.use = "result.spx")
+
+result <- rbind(res_diff,res_cont)
+
+result_record <- list(result=result, 
+                      used_time = paste0(round(used.time[3]/60,3), ' min'), 
+                      used_memory =  round(used.memory/1024/1024/1024,3))
+
+
+
+saveRDS(result_record,file='./result/CytoSignal_result.rds')
+saveRDS(cs,file='./result/CID_cs_obj.rds')
+
+
+
